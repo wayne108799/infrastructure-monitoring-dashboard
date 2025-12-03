@@ -1,10 +1,21 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity } from 'lucide-react';
+import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fetchSites, fetchSiteSummary, type Site, type SiteSummary } from '@/lib/api';
+import { 
+  fetchSites, 
+  fetchSiteSummary, 
+  fetchPlatforms,
+  getPlatformShortName,
+  getPlatformColor,
+  type Site, 
+  type SiteSummary,
+  type PlatformType 
+} from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { 
   PieChart, 
   Pie, 
@@ -19,27 +30,31 @@ interface SiteData {
   summary: SiteSummary | null;
 }
 
-const COLORS = {
-  capacity: '#64748b',
-  allocated: '#0ea5e9',
-  used: '#22c55e',
-  available: '#3b82f6',
-  reserved: '#f59e0b',
-};
-
 export default function Dashboard() {
-  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
-    queryKey: ['sites'],
-    queryFn: fetchSites,
+  const [platformFilter, setPlatformFilter] = useState<PlatformType | 'all'>('all');
+
+  const { data: platforms } = useQuery({
+    queryKey: ['platforms'],
+    queryFn: fetchPlatforms,
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
+    queryKey: ['sites'],
+    queryFn: () => fetchSites(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const filteredSites = sites?.filter(site => 
+    platformFilter === 'all' || site.platformType === platformFilter
+  ) || [];
+
   const { data: allSiteSummaries, isLoading: summariesLoading } = useQuery({
-    queryKey: ['allSiteSummaries', sites?.map(s => s.id)],
+    queryKey: ['allSiteSummaries', filteredSites?.map(s => s.id)],
     queryFn: async () => {
-      if (!sites) return [];
+      if (!filteredSites || filteredSites.length === 0) return [];
       const summaries = await Promise.all(
-        sites.map(async (site) => {
+        filteredSites.map(async (site) => {
           try {
             const summary = await fetchSiteSummary(site.id);
             return { site, summary };
@@ -50,7 +65,7 @@ export default function Dashboard() {
       );
       return summaries;
     },
-    enabled: !!sites && sites.length > 0,
+    enabled: filteredSites.length > 0,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 60 * 1000,
   });
@@ -66,7 +81,7 @@ export default function Dashboard() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Connection Error</AlertTitle>
           <AlertDescription>
-            Unable to connect to VMware Cloud Director. Please check your configuration in the Secrets tab.
+            Unable to connect to infrastructure platforms. Please check your configuration in the Secrets tab.
             <br />
             <span className="text-xs mt-2 block">Error: {(sitesError as Error).message}</span>
           </AlertDescription>
@@ -81,7 +96,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="mt-4 text-muted-foreground">Connecting to VCD...</p>
+            <p className="mt-4 text-muted-foreground">Connecting to platforms...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -93,9 +108,13 @@ export default function Dashboard() {
       <DashboardLayout>
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No VCD Sites Configured</AlertTitle>
+          <AlertTitle>No Sites Configured</AlertTitle>
           <AlertDescription>
-            Please configure your VMware Cloud Director sites in the Secrets tab.
+            Please configure your virtualization platform sites in the Secrets tab.
+            <br />
+            <span className="text-sm mt-2 block text-muted-foreground">
+              Supported platforms: VMware Cloud Director (VCD), Apache CloudStack, Proxmox VE
+            </span>
           </AlertDescription>
         </Alert>
       </DashboardLayout>
@@ -120,12 +139,64 @@ export default function Dashboard() {
     return null;
   };
 
+  const PlatformBadge = ({ type }: { type: PlatformType }) => (
+    <Badge 
+      variant="outline" 
+      className="text-xs font-medium"
+      style={{ 
+        borderColor: getPlatformColor(type),
+        color: getPlatformColor(type),
+      }}
+      data-testid={`badge-platform-${type}`}
+    >
+      {getPlatformShortName(type)}
+    </Badge>
+  );
+
   return (
     <DashboardLayout>
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Infrastructure Overview</h1>
-        <p className="text-muted-foreground mt-1">Resource utilization across all VCD sites.</p>
+        <p className="text-muted-foreground mt-1">Resource utilization across all virtualization platforms.</p>
       </div>
+
+      {/* Platform Filter */}
+      {platforms && platforms.length > 1 && (
+        <div className="mb-6 flex items-center gap-2" data-testid="platform-filter">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPlatformFilter('all')}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm font-medium transition-colors",
+                platformFilter === 'all' 
+                  ? "bg-primary text-primary-foreground" 
+                  : "bg-muted hover:bg-muted/80"
+              )}
+              data-testid="filter-all"
+            >
+              All Platforms
+            </button>
+            {platforms.map(platform => (
+              <button
+                key={platform.type}
+                onClick={() => setPlatformFilter(platform.type)}
+                className={cn(
+                  "px-3 py-1 rounded-md text-sm font-medium transition-colors",
+                  platformFilter === platform.type 
+                    ? "text-white" 
+                    : "bg-muted hover:bg-muted/80"
+                )}
+                style={platformFilter === platform.type ? { backgroundColor: getPlatformColor(platform.type) } : {}}
+                data-testid={`filter-${platform.type}`}
+              >
+                {getPlatformShortName(platform.type)} ({platform.siteCount})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {summariesLoading && (
         <div className="flex items-center justify-center h-48">
@@ -145,8 +216,8 @@ export default function Dashboard() {
                   <h3 className="text-sm font-medium text-muted-foreground">Total Sites</h3>
                   <Server className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="text-3xl font-bold font-mono">{sites.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">{totalVdcs} Organization VDCs</p>
+                <div className="text-3xl font-bold font-mono" data-testid="text-total-sites">{filteredSites.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">{totalVdcs} Tenant Allocations</p>
               </CardContent>
             </Card>
             <Card className="bg-card border-border">
@@ -155,7 +226,7 @@ export default function Dashboard() {
                   <h3 className="text-sm font-medium text-muted-foreground">Virtual Machines</h3>
                   <Activity className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="text-3xl font-bold font-mono">{totalVms}</div>
+                <div className="text-3xl font-bold font-mono" data-testid="text-total-vms">{totalVms}</div>
                 <p className="text-xs text-muted-foreground mt-1">{runningVms} Running / {totalVms - runningVms} Stopped</p>
               </CardContent>
             </Card>
@@ -165,11 +236,12 @@ export default function Dashboard() {
                   <h3 className="text-sm font-medium text-muted-foreground">Sites Status</h3>
                   <Globe className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex gap-4 mt-2">
-                  {sites.map(site => (
-                    <div key={site.id} className="flex items-center gap-2">
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {filteredSites.map(site => (
+                    <div key={site.id} className="flex items-center gap-1.5" data-testid={`site-status-${site.id}`}>
                       <div className={`w-2 h-2 rounded-full ${site.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
                       <span className="text-sm font-medium">{site.name}</span>
+                      <PlatformBadge type={site.platformType} />
                     </div>
                   ))}
                 </div>
@@ -178,10 +250,11 @@ export default function Dashboard() {
           </div>
 
           {validSummaries.map(({ site, summary }) => (
-            <div key={site.id} className="mb-8">
+            <div key={site.id} className="mb-8" data-testid={`site-section-${site.id}`}>
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <Server className="h-5 w-5 text-primary" />
                 {site.name} - {site.location}
+                <PlatformBadge type={site.platformType} />
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

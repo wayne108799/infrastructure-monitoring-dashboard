@@ -1,71 +1,42 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { VcdClient, type VcdConfig } from "./lib/vcdClient";
 import { log } from "./index";
-
-// VCD client instances (one per configured site)
-const vcdClients: Map<string, VcdClient> = new Map();
-
-// Initialize VCD clients from environment variables
-function initializeVcdClients() {
-  // Support multiple VCD sites via environment variables
-  // Format: VCD_SITES=site1,site2,site3
-  // For each site: VCD_SITE1_URL, VCD_SITE1_USERNAME, etc.
-  
-  const sitesEnv = process.env.VCD_SITES || '';
-  const siteIds = sitesEnv.split(',').map(s => s.trim()).filter(Boolean);
-
-  if (siteIds.length === 0) {
-    log('No VCD sites configured. Set VCD_SITES environment variable.', 'routes');
-    return;
-  }
-
-  for (const siteId of siteIds) {
-    const url = process.env[`VCD_${siteId.toUpperCase()}_URL`];
-    const username = process.env[`VCD_${siteId.toUpperCase()}_USERNAME`];
-    const password = process.env[`VCD_${siteId.toUpperCase()}_PASSWORD`];
-    const org = process.env[`VCD_${siteId.toUpperCase()}_ORG`];
-
-    if (!url || !username || !password || !org) {
-      log(`Incomplete configuration for VCD site: ${siteId}. Skipping.`, 'routes');
-      continue;
-    }
-
-    const config: VcdConfig = { url, username, password, org };
-    vcdClients.set(siteId, new VcdClient(config));
-    log(`Initialized VCD client for site: ${siteId}`, 'routes');
-  }
-}
+import { platformRegistry, type PlatformType, type SiteSummary } from "./lib/platforms";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // Initialize VCD clients
-  initializeVcdClients();
+  // Initialize all platform clients from environment
+  platformRegistry.initializeFromEnv();
 
   /**
    * GET /api/sites
-   * Get list of configured VCD sites
+   * Get list of all configured sites across all platforms
    */
   app.get('/api/sites', async (req, res) => {
     try {
-      const sites = Array.from(vcdClients.keys()).map(siteId => {
-        const url = process.env[`VCD_${siteId.toUpperCase()}_URL`] || '';
-        const name = process.env[`VCD_${siteId.toUpperCase()}_NAME`] || siteId;
-        const location = process.env[`VCD_${siteId.toUpperCase()}_LOCATION`] || 'Unknown';
-        
-        return {
-          id: siteId,
-          name,
-          location,
-          url,
-          status: 'online' // We'll assume online; could ping /api/versions to verify
-        };
-      });
+      const { platform } = req.query;
+      
+      let sites = platformRegistry.getAllSites();
+      
+      // Filter by platform if specified
+      if (platform && typeof platform === 'string') {
+        sites = sites.filter(s => s.platformType === platform);
+      }
 
-      res.json(sites);
+      const siteList = sites.map(({ id, platformType, info }) => ({
+        id: info.id,
+        compositeId: id,
+        name: info.name,
+        location: info.location,
+        url: info.url,
+        platformType,
+        status: info.status,
+      }));
+
+      res.json(siteList);
     } catch (error: any) {
       log(`Error fetching sites: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
@@ -73,34 +44,142 @@ export async function registerRoutes(
   });
 
   /**
-   * GET /api/sites/:siteId/vdcs
-   * Get all Organization VDCs for a site
+   * GET /api/platforms
+   * Get list of available platform types
+   */
+  app.get('/api/platforms', async (req, res) => {
+    try {
+      const sites = platformRegistry.getAllSites();
+      const platforms = new Set(sites.map(s => s.platformType));
+      
+      const platformInfo = Array.from(platforms).map(type => ({
+        type,
+        name: type === 'vcd' ? 'VMware Cloud Director' : 
+              type === 'cloudstack' ? 'Apache CloudStack' : 
+              type === 'proxmox' ? 'Proxmox VE' : type,
+        siteCount: sites.filter(s => s.platformType === type).length,
+      }));
+
+      res.json(platformInfo);
+    } catch (error: any) {
+      log(`Error fetching platforms: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/sites/:siteId/summary
+   * Get aggregated summary for a site (works across all platforms)
+   */
+  app.get('/api/sites/:siteId/summary', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = platformRegistry.getClientBySiteId(siteId);
+
+      if (!client) {
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
+      }
+
+      const summary = await client.getSiteSummary();
+      
+      // Transform to legacy format for backward compatibility
+      res.json({
+        totalVdcs: summary.totalTenants,
+        totalVms: summary.totalVms,
+        runningVms: summary.runningVms,
+        cpu: {
+          capacity: summary.cpu.capacity,
+          allocated: summary.cpu.allocated,
+          used: summary.cpu.used,
+          reserved: summary.cpu.reserved || 0,
+          available: summary.cpu.available,
+          units: summary.cpu.units,
+        },
+        memory: {
+          capacity: summary.memory.capacity,
+          allocated: summary.memory.allocated,
+          used: summary.memory.used,
+          reserved: summary.memory.reserved || 0,
+          available: summary.memory.available,
+          units: summary.memory.units,
+        },
+        storage: {
+          capacity: summary.storage.capacity,
+          limit: summary.storage.limit,
+          used: summary.storage.used,
+          available: summary.storage.available,
+          units: summary.storage.units,
+        },
+        network: summary.network,
+        platformType: summary.platformType,
+      });
+    } catch (error: any) {
+      log(`Error fetching summary for site ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/sites/:siteId/tenants
+   * Get all tenant allocations (VDCs, Projects, Nodes) for a site
+   */
+  app.get('/api/sites/:siteId/tenants', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = platformRegistry.getClientBySiteId(siteId);
+
+      if (!client) {
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
+      }
+
+      const tenants = await client.getTenantAllocations();
+      res.json(tenants);
+    } catch (error: any) {
+      log(`Error fetching tenants for site ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/sites/:siteId/vdcs (legacy endpoint - maps to tenants)
+   * Backward compatibility for VCD-specific frontend code
    */
   app.get('/api/sites/:siteId/vdcs', async (req, res) => {
     try {
       const { siteId } = req.params;
-      const client = vcdClients.get(siteId);
+      const client = platformRegistry.getClientBySiteId(siteId);
 
       if (!client) {
-        return res.status(404).json({ error: `VCD site not found: ${siteId}` });
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
       }
 
-      const vdcs = await client.getOrgVdcs();
+      const tenants = await client.getTenantAllocations();
       
-      // Fetch comprehensive data for each VDC (in parallel)
-      const comprehensiveVdcs = await Promise.all(
-        vdcs.map(async (vdc) => {
-          try {
-            return await client.getVdcComprehensive(vdc.id);
-          } catch (error: any) {
-            log(`Error fetching comprehensive data for VDC ${vdc.id}: ${error.message}`, 'routes');
-            // Return basic VDC data if comprehensive fetch fails
-            return vdc;
-          }
-        })
-      );
+      // Map to VDC-like structure for backward compatibility
+      const vdcs = tenants.map(tenant => ({
+        id: tenant.id,
+        name: tenant.name,
+        description: tenant.description,
+        status: tenant.status === 'active' ? 1 : 0,
+        computeCapacity: {
+          cpu: tenant.cpu,
+          memory: tenant.memory,
+        },
+        storageProfiles: [{
+          name: 'Storage',
+          limit: tenant.storage.limit,
+          used: tenant.storage.used,
+        }],
+        vmResources: {
+          vmCount: tenant.vmCount,
+          runningVmCount: tenant.runningVmCount,
+        },
+        ipAllocation: {
+          totalIpCount: tenant.allocatedIps || 0,
+        },
+      }));
 
-      res.json(comprehensiveVdcs);
+      res.json(vdcs);
     } catch (error: any) {
       log(`Error fetching VDCs for site ${req.params.siteId}: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
@@ -108,41 +187,46 @@ export async function registerRoutes(
   });
 
   /**
-   * GET /api/sites/:siteId/vdcs/:vdcId
-   * Get detailed information for a specific VDC
+   * GET /api/sites/:siteId/tenants/:tenantId
+   * Get detailed tenant allocation
    */
-  app.get('/api/sites/:siteId/vdcs/:vdcId', async (req, res) => {
+  app.get('/api/sites/:siteId/tenants/:tenantId', async (req, res) => {
     try {
-      const { siteId, vdcId } = req.params;
-      const client = vcdClients.get(siteId);
+      const { siteId, tenantId } = req.params;
+      const client = platformRegistry.getClientBySiteId(siteId);
 
       if (!client) {
-        return res.status(404).json({ error: `VCD site not found: ${siteId}` });
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
       }
 
-      const vdcData = await client.getVdcComprehensive(vdcId);
-      res.json(vdcData);
+      const tenant = await client.getTenantAllocation(tenantId);
+      
+      if (!tenant) {
+        return res.status(404).json({ error: `Tenant not found: ${tenantId}` });
+      }
+
+      res.json(tenant);
     } catch (error: any) {
-      log(`Error fetching VDC ${req.params.vdcId}: ${error.message}`, 'routes');
+      log(`Error fetching tenant ${req.params.tenantId}: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });
 
   /**
    * POST /api/sites/:siteId/test-connection
-   * Test connection to a VCD site
+   * Test connection to a site
    */
   app.post('/api/sites/:siteId/test-connection', async (req, res) => {
     try {
       const { siteId } = req.params;
-      const client = vcdClients.get(siteId);
+      const client = platformRegistry.getClientBySiteId(siteId);
 
       if (!client) {
-        return res.status(404).json({ error: `VCD site not found: ${siteId}` });
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
       }
 
-      await client.authenticate();
-      res.json({ success: true, message: 'Connection successful' });
+      const success = await client.testConnection();
+      res.json({ success, message: success ? 'Connection successful' : 'Connection failed' });
     } catch (error: any) {
       log(`Connection test failed for ${req.params.siteId}: ${error.message}`, 'routes');
       res.status(500).json({ success: false, error: error.message });
@@ -150,124 +234,86 @@ export async function registerRoutes(
   });
 
   /**
-   * GET /api/sites/:siteId/summary
-   * Get aggregated totals for a VCD site including Provider VDC capacity
+   * GET /api/summary
+   * Get aggregated summary across all sites
    */
-  app.get('/api/sites/:siteId/summary', async (req, res) => {
+  app.get('/api/summary', async (req, res) => {
     try {
-      const { siteId } = req.params;
-      const client = vcdClients.get(siteId);
-
-      if (!client) {
-        return res.status(404).json({ error: `VCD site not found: ${siteId}` });
+      const { platform } = req.query;
+      
+      let sites = platformRegistry.getAllSites();
+      
+      // Filter by platform if specified
+      if (platform && typeof platform === 'string') {
+        sites = sites.filter(s => s.platformType === platform);
       }
 
-      // Fetch VDCs, Provider capacity, and Site IP summary in parallel
-      const [vdcs, providerCapacity, siteIpSummary] = await Promise.all([
-        client.getOrgVdcs(),
-        client.getProviderCapacity(),
-        client.getSiteIpSummary()
-      ]);
+      const summaries: (SiteSummary & { siteName: string })[] = [];
       
-      // Fetch comprehensive data for each VDC (in parallel)
-      const comprehensiveVdcs = await Promise.all(
-        vdcs.map(async (vdc) => {
-          try {
-            return await client.getVdcComprehensive(vdc.id);
-          } catch (error: any) {
-            return vdc;
+      for (const site of sites) {
+        try {
+          const client = platformRegistry.getClient(site.id);
+          if (client) {
+            const summary = await client.getSiteSummary();
+            summaries.push({ ...summary, siteName: site.info.name });
           }
-        })
-      );
+        } catch (error: any) {
+          log(`Error fetching summary for ${site.id}: ${error.message}`, 'routes');
+        }
+      }
 
-      // Aggregate totals from Org VDCs (what's allocated to tenants)
-      const summary = {
-        totalVdcs: comprehensiveVdcs.length,
-        totalVms: 0,
-        runningVms: 0,
+      // Aggregate totals
+      const totals = {
+        totalSites: summaries.length,
+        totalTenants: summaries.reduce((sum, s) => sum + s.totalTenants, 0),
+        totalVms: summaries.reduce((sum, s) => sum + s.totalVms, 0),
+        runningVms: summaries.reduce((sum, s) => sum + s.runningVms, 0),
         cpu: {
-          capacity: providerCapacity.cpu.capacity,
-          allocated: 0,
-          used: 0,
-          reserved: 0,
-          available: 0,
-          units: 'MHz'
+          capacity: summaries.reduce((sum, s) => sum + s.cpu.capacity, 0),
+          allocated: summaries.reduce((sum, s) => sum + s.cpu.allocated, 0),
+          used: summaries.reduce((sum, s) => sum + s.cpu.used, 0),
+          available: summaries.reduce((sum, s) => sum + s.cpu.available, 0),
+          units: 'MHz',
         },
         memory: {
-          capacity: providerCapacity.memory.capacity,
-          allocated: 0,
-          used: 0,
-          reserved: 0,
-          available: 0,
-          units: 'MB'
+          capacity: summaries.reduce((sum, s) => sum + s.memory.capacity, 0),
+          allocated: summaries.reduce((sum, s) => sum + s.memory.allocated, 0),
+          used: summaries.reduce((sum, s) => sum + s.memory.used, 0),
+          available: summaries.reduce((sum, s) => sum + s.memory.available, 0),
+          units: 'MB',
         },
         storage: {
-          capacity: providerCapacity.storage.capacity,
-          limit: 0,
-          used: 0,
-          available: 0,
-          units: 'MB'
+          capacity: summaries.reduce((sum, s) => sum + s.storage.capacity, 0),
+          used: summaries.reduce((sum, s) => sum + s.storage.used, 0),
+          available: summaries.reduce((sum, s) => sum + s.storage.available, 0),
+          units: 'MB',
         },
         network: {
-          totalIps: siteIpSummary.totalIps,
-          allocatedIps: siteIpSummary.allocatedIps,
-          usedIps: siteIpSummary.usedIps,
-          freeIps: siteIpSummary.freeIps
-        }
+          totalIps: summaries.reduce((sum, s) => sum + s.network.totalIps, 0),
+          allocatedIps: summaries.reduce((sum, s) => sum + s.network.allocatedIps, 0),
+          usedIps: summaries.reduce((sum, s) => sum + s.network.usedIps, 0),
+          freeIps: summaries.reduce((sum, s) => sum + s.network.freeIps, 0),
+        },
+        byPlatform: {} as Record<string, any>,
       };
 
-      for (const vdc of comprehensiveVdcs) {
-        // Aggregate VM counts
-        if (vdc.vmResources) {
-          summary.totalVms += vdc.vmResources.vmCount || 0;
-          summary.runningVms += vdc.vmResources.runningVmCount || 0;
+      // Group by platform
+      for (const summary of summaries) {
+        if (!totals.byPlatform[summary.platformType]) {
+          totals.byPlatform[summary.platformType] = {
+            siteCount: 0,
+            totalVms: 0,
+            runningVms: 0,
+          };
         }
-        
-        // Aggregate compute capacity
-        if (vdc.computeCapacity) {
-          summary.cpu.allocated += vdc.computeCapacity.cpu?.allocated || 0;
-          summary.cpu.used += vdc.computeCapacity.cpu?.used || 0;
-          summary.cpu.reserved += vdc.computeCapacity.cpu?.reserved || 0;
-          summary.memory.allocated += vdc.computeCapacity.memory?.allocated || 0;
-          summary.memory.used += vdc.computeCapacity.memory?.used || 0;
-          summary.memory.reserved += vdc.computeCapacity.memory?.reserved || 0;
-        }
-        
-        // Aggregate storage
-        if (vdc.storageProfiles && Array.isArray(vdc.storageProfiles)) {
-          for (const profile of vdc.storageProfiles) {
-            summary.storage.limit += profile.limit || 0;
-            summary.storage.used += profile.used || 0;
-          }
-        }
+        totals.byPlatform[summary.platformType].siteCount++;
+        totals.byPlatform[summary.platformType].totalVms += summary.totalVms;
+        totals.byPlatform[summary.platformType].runningVms += summary.runningVms;
       }
 
-      // Calculate available = capacity - allocated (or capacity - limit for storage)
-      // If provider capacity is 0, use allocated as the capacity (PVDC query might have failed)
-      if (summary.cpu.capacity > 0) {
-        summary.cpu.available = summary.cpu.capacity - summary.cpu.allocated;
-      } else {
-        summary.cpu.capacity = summary.cpu.allocated;
-        summary.cpu.available = summary.cpu.allocated - summary.cpu.used;
-      }
-      
-      if (summary.memory.capacity > 0) {
-        summary.memory.available = summary.memory.capacity - summary.memory.allocated;
-      } else {
-        summary.memory.capacity = summary.memory.allocated;
-        summary.memory.available = summary.memory.allocated - summary.memory.used;
-      }
-      
-      if (summary.storage.capacity > 0) {
-        summary.storage.available = summary.storage.capacity - summary.storage.limit;
-      } else {
-        summary.storage.capacity = summary.storage.limit;
-        summary.storage.available = summary.storage.limit - summary.storage.used;
-      }
-
-      res.json(summary);
+      res.json({ totals, sites: summaries });
     } catch (error: any) {
-      log(`Error fetching summary for site ${req.params.siteId}: ${error.message}`, 'routes');
+      log(`Error fetching aggregated summary: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

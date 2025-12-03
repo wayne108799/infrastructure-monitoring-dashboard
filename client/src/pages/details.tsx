@@ -7,15 +7,25 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Server, Database, Globe, Network, AlertCircle, Cpu, HardDrive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { fetchSites, fetchSiteVdcs, fetchSiteSummary, type Site, type OrgVdc, type SiteSummary } from '@/lib/api';
+import { 
+  fetchSites, 
+  fetchSiteVdcs, 
+  fetchSiteSummary, 
+  getPlatformShortName, 
+  getPlatformColor,
+  type Site, 
+  type OrgVdc, 
+  type SiteSummary 
+} from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 export default function Details() {
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ['sites'],
-    queryFn: fetchSites,
+    queryFn: () => fetchSites(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -47,6 +57,19 @@ export default function Details() {
   const toGB = (mb: number) => (mb / 1024).toFixed(0);
   const toTB = (mb: number) => (mb / 1024 / 1024).toFixed(1);
 
+  const getTenantLabel = (platformType?: string) => {
+    switch (platformType) {
+      case 'vcd':
+        return 'Organization VDCs';
+      case 'cloudstack':
+        return 'Projects';
+      case 'proxmox':
+        return 'Nodes';
+      default:
+        return 'Tenants';
+    }
+  };
+
   if (sitesError) {
     return (
       <DashboardLayout>
@@ -54,7 +77,7 @@ export default function Details() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Connection Error</AlertTitle>
           <AlertDescription>
-            Unable to connect to VMware Cloud Director. Please check your configuration in the Secrets tab.
+            Unable to connect to infrastructure platforms. Please check your configuration in the Secrets tab.
             <br />
             <span className="text-xs mt-2 block">Error: {(sitesError as Error).message}</span>
           </AlertDescription>
@@ -69,7 +92,7 @@ export default function Details() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="mt-4 text-muted-foreground">Connecting to VCD...</p>
+            <p className="mt-4 text-muted-foreground">Connecting to platforms...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -81,9 +104,13 @@ export default function Details() {
       <DashboardLayout>
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No VCD Sites Configured</AlertTitle>
+          <AlertTitle>No Sites Configured</AlertTitle>
           <AlertDescription>
-            Please configure your VMware Cloud Director sites in the Secrets tab.
+            Please configure your virtualization platform sites in the Secrets tab.
+            <br />
+            <span className="text-sm mt-2 block text-muted-foreground">
+              Supported platforms: VMware Cloud Director (VCD), Apache CloudStack, Proxmox VE
+            </span>
           </AlertDescription>
         </Alert>
       </DashboardLayout>
@@ -94,14 +121,14 @@ export default function Details() {
     <DashboardLayout>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">VDC Details</h1>
-          <p className="text-muted-foreground mt-1">Detailed view of Organization VDCs and resource consumption.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Tenant Details</h1>
+          <p className="text-muted-foreground mt-1">Detailed view of tenant allocations and resource consumption.</p>
         </div>
 
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground font-medium">Select Site:</span>
           <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-            <SelectTrigger className="w-[260px] bg-card border-border" data-testid="select-site">
+            <SelectTrigger className="w-[300px] bg-card border-border" data-testid="select-site">
               <SelectValue placeholder="Select a site" />
             </SelectTrigger>
             <SelectContent>
@@ -110,6 +137,16 @@ export default function Details() {
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${site.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
                     <span className="font-medium">{site.name}</span>
+                    <Badge 
+                      variant="outline" 
+                      className="text-[10px] font-medium px-1.5 py-0"
+                      style={{ 
+                        borderColor: getPlatformColor(site.platformType),
+                        color: getPlatformColor(site.platformType),
+                      }}
+                    >
+                      {getPlatformShortName(site.platformType)}
+                    </Badge>
                     <span className="text-xs text-muted-foreground ml-auto">{site.location}</span>
                   </div>
                 </SelectItem>
@@ -119,11 +156,28 @@ export default function Details() {
         </div>
       </div>
 
+      {selectedSite && (
+        <div className="mb-4 flex items-center gap-2">
+          <Badge 
+            variant="outline" 
+            className="text-xs font-medium"
+            style={{ 
+              borderColor: getPlatformColor(selectedSite.platformType),
+              color: getPlatformColor(selectedSite.platformType),
+            }}
+            data-testid={`badge-selected-platform`}
+          >
+            {getPlatformShortName(selectedSite.platformType)}
+          </Badge>
+          <span className="text-sm text-muted-foreground">{selectedSite.url}</span>
+        </div>
+      )}
+
       {vdcsLoading && (
         <div className="flex items-center justify-center h-48">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="mt-2 text-sm text-muted-foreground">Loading VDC data...</p>
+            <p className="mt-2 text-sm text-muted-foreground">Loading tenant data...</p>
           </div>
         </div>
       )}
@@ -131,7 +185,7 @@ export default function Details() {
       {vdcsError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error Loading VDC Data</AlertTitle>
+          <AlertTitle>Error Loading Data</AlertTitle>
           <AlertDescription>
             {(vdcsError as Error).message}
           </AlertDescription>
@@ -142,7 +196,7 @@ export default function Details() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard
-              title="Organization VDCs"
+              title={getTenantLabel(selectedSite?.platformType)}
               value={siteSummary?.totalVdcs?.toString() || vdcs.length.toString()}
               icon={Server}
               trend="Active"
@@ -237,15 +291,15 @@ export default function Details() {
           <div>
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Network className="h-5 w-5 text-primary" />
-              Organization VDCs
+              {getTenantLabel(selectedSite?.platformType)}
             </h2>
 
             {vdcs.length === 0 ? (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>No VDCs Found</AlertTitle>
+                <AlertTitle>No Tenants Found</AlertTitle>
                 <AlertDescription>
-                  No Organization VDCs were found for this site. Check your permissions and site configuration.
+                  No tenant allocations were found for this site. Check your permissions and site configuration.
                 </AlertDescription>
               </Alert>
             ) : (
