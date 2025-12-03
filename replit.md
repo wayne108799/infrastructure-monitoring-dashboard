@@ -72,9 +72,22 @@ PROXMOX_PVE1_LOCATION=EU-Central
 - `POST /api/sites/:siteId/test-connection` - Test site connectivity
 
 ## Recent Changes
+- **Storage Capacity Fix**: Now correctly retrieves Provider VDC storage capacity from vCenter
+  - Reads `capacityTotal` from Provider VDC storage profiles (in KB, converted to MB)
+  - Shows actual physical storage capacity vs allocated limits (can show overcommitment)
+  - Storage breakdown: capacity (physical), limit (allocated), used, available
+- Added Settings page for managing platform connections via UI (`/settings`)
+- Added database-backed site configuration with CRUD API (`/api/config/sites`)
 - Added multi-platform support for VCD, CloudStack, and Proxmox
 - Implemented unified PlatformClient interface for provider-agnostic metrics
 - Added platform filtering on dashboard
 - Added platform badges to site displays
 - Converted dashboard graphs to pie/donut charts
 - Created separate Overview (graphs) and Details (tenant grid) pages
+
+## Storage Metrics (VCD)
+The storage capacity shown on the dashboard comes from Provider VDC storage profiles:
+- **Capacity**: Physical storage from vCenter (Provider VDC storage profiles `capacityTotal`)
+- **Limit**: Sum of all Org VDC storage allocations (can exceed capacity if overcommitted)
+- **Used**: Actual storage consumed by tenant VMs and objects
+- **Available**: Capacity minus Used (physical availability)

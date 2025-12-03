@@ -635,6 +635,50 @@ export class VcdClient {
   }
 
   /**
+   * Get Provider VDC Storage Profile details with capacity from vCenter
+   */
+  async getProviderStorageProfileDetails(href: string): Promise<{ capacity: number; used: number; name: string } | null> {
+    try {
+      const id = href?.split('/').pop();
+      if (!id) return null;
+      
+      // Fetch the storage profile details directly
+      const profile = await this.request<any>(`/api/admin/pvdcStorageProfile/${id}`);
+      
+      // VCD returns capacityTotal in KB, we need to convert to MB for consistency
+      // capacityTotal is in KB (1024 bytes), convert to MB by dividing by 1024
+      let capacityMB = 0;
+      let usedMB = 0;
+      
+      if (profile.storageTotalMB) {
+        // Already in MB
+        capacityMB = profile.storageTotalMB;
+      } else if (profile.capacityTotal) {
+        // capacityTotal is in KB, convert to MB
+        capacityMB = Math.round(profile.capacityTotal / 1024);
+      }
+      
+      if (profile.storageUsedMB) {
+        usedMB = profile.storageUsedMB;
+      } else if (profile.storageUsed) {
+        // storageUsed might be in KB, convert to MB
+        usedMB = Math.round(profile.storageUsed / 1024);
+      }
+      
+      log(`Provider Storage Profile "${profile.name}": capacityTotal=${profile.capacityTotal}KB -> ${capacityMB}MB, used=${usedMB}MB`, 'vcd-client');
+      
+      return {
+        name: profile.name || 'Unknown',
+        capacity: capacityMB,
+        used: usedMB
+      };
+    } catch (e) {
+      log(`Error fetching provider storage profile details: ${e}`, 'vcd-client');
+      return null;
+    }
+  }
+
+  /**
    * Get Provider VDCs (resource pool capacity) - requires provider admin access
    */
   async getProviderVdcs(): Promise<any[]> {
@@ -703,15 +747,32 @@ export class VcdClient {
           memoryUsed += mem.used || 0;
         }
         
-        // Storage from storageProfiles
+        // Storage from storageProfiles - need to fetch each profile details for capacity
         if (pvdc.storageProfiles?.providerVdcStorageProfile) {
-          for (const sp of pvdc.storageProfiles.providerVdcStorageProfile) {
-            storageCapacity += sp.capacityTotal || 0;
-            storageAllocated += sp.capacityUsed || 0;
-            storageUsed += sp.storageUsedMB || 0;
+          const profileDetails = await Promise.all(
+            pvdc.storageProfiles.providerVdcStorageProfile.map(async (sp: any) => {
+              if (sp.href) {
+                const details = await this.getProviderStorageProfileDetails(sp.href);
+                return details || { name: sp.name, capacity: 0, used: 0 };
+              }
+              return { 
+                name: sp.name, 
+                capacity: sp.capacityTotal || sp.storageTotalMB || 0, 
+                used: sp.storageUsedMB || 0 
+              };
+            })
+          );
+          
+          for (const profile of profileDetails) {
+            storageCapacity += profile.capacity;
+            storageUsed += profile.used;
+            
+            log(`Provider VDC Storage Profile "${profile.name}": capacity=${profile.capacity}MB, used=${profile.used}MB`, 'vcd-client');
           }
         }
       }
+      
+      log(`Provider VDC Total Storage: capacity=${storageCapacity}MB, used=${storageUsed}MB`, 'vcd-client');
       
       return {
         cpu: {

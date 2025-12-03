@@ -105,10 +105,12 @@ export class VcdAdapter implements PlatformClient {
         }
       }
 
-      // Calculate capacities
+      // Calculate capacities - prefer Provider VDC capacity, fallback to aggregated Org VDC limits
       let cpuCapacity = providerCapacity.cpu.capacity || cpuAllocated;
       let memoryCapacity = providerCapacity.memory.capacity || memoryAllocated;
       let storageCapacity = providerCapacity.storage.capacity || storageLimit;
+      
+      log(`Storage calculation: providerCapacity=${providerCapacity.storage.capacity}MB, orgVdcLimits=${storageLimit}MB, using=${storageCapacity}MB`, 'vcd-adapter');
 
       return {
         siteId: this.config.id,
