@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, Server, Activity, Settings, Cloud, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -19,24 +19,6 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-function SidebarCollapseButton({ className }: { className?: string }) {
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === 'collapsed';
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={toggleSidebar}
-      className={cn("h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent", className)}
-      data-testid="button-toggle-sidebar"
-      title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-    >
-      {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-    </Button>
-  );
-}
-
 function AppSidebar() {
   const [location] = useLocation();
   const { state } = useSidebar();
@@ -51,20 +33,16 @@ function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
-        {!isCollapsed ? (
-          <>
-            <div className="flex items-center gap-2 text-primary">
-              <Cloud className="h-6 w-6 shrink-0" />
-              <span className="font-bold text-lg tracking-tight text-foreground whitespace-nowrap">VCD Monitor</span>
-            </div>
-            <SidebarCollapseButton />
-          </>
-        ) : (
-          <div className="flex items-center justify-center w-full">
-            <SidebarCollapseButton className="h-10 w-10" />
-          </div>
-        )}
+      <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border">
+        <div className={cn(
+          "flex items-center gap-2 text-primary transition-all duration-200",
+          isCollapsed ? "justify-center w-full" : ""
+        )}>
+          <Cloud className="h-6 w-6 shrink-0" />
+          {!isCollapsed && (
+            <span className="font-bold text-lg tracking-tight text-foreground whitespace-nowrap">VCD Monitor</span>
+          )}
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="p-2">
@@ -106,22 +84,19 @@ function AppSidebar() {
   );
 }
 
-function HeaderSidebarToggle() {
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === 'collapsed';
-
-  if (!isCollapsed) return null;
-
+function SidebarToggleButton() {
+  const { toggleSidebar, state } = useSidebar();
+  
   return (
     <Button
       variant="ghost"
       size="icon"
       onClick={toggleSidebar}
-      className="h-8 w-8 mr-2"
-      data-testid="button-header-toggle-sidebar"
-      title="Expand sidebar"
+      className="h-8 w-8 mr-4"
+      data-testid="button-toggle-sidebar"
+      title={state === 'collapsed' ? 'Expand sidebar' : 'Collapse sidebar'}
     >
-      <Menu className="h-4 w-4" />
+      <PanelLeft className="h-5 w-5" />
     </Button>
   );
 }
@@ -133,9 +108,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <AppSidebar />
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-16 border-b border-border bg-background/50 backdrop-blur-sm flex items-center justify-between px-8 sticky top-0 z-10">
+          <header className="h-16 border-b border-border bg-background/50 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-10">
             <div className="flex items-center text-sm text-muted-foreground">
-              <HeaderSidebarToggle />
+              <SidebarToggleButton />
               <span className="text-primary">System</span>
               <span className="mx-2">/</span>
               <span className="text-foreground">Dashboard</span>
