@@ -448,6 +448,121 @@ export class VcdClient {
   }
 
   /**
+   * Get Provider VDCs (resource pool capacity) - requires provider admin access
+   */
+  async getProviderVdcs(): Promise<any[]> {
+    try {
+      // Query Provider VDCs via admin extension API
+      const response = await this.request<any>(
+        `/api/admin/extension/providerVdcReferences`
+      );
+      
+      const refs = response.providerVdcReference || [];
+      
+      // Fetch details for each PVDC
+      const pvdcs = await Promise.all(
+        refs.map(async (ref: any) => {
+          try {
+            const id = ref.href?.split('/').pop();
+            if (!id) return null;
+            
+            const details = await this.request<any>(`/api/admin/extension/providervdc/${id}`);
+            return details;
+          } catch (e) {
+            log(`Error fetching PVDC details: ${e}`, 'vcd-client');
+            return null;
+          }
+        })
+      );
+      
+      return pvdcs.filter(p => p !== null);
+    } catch (error) {
+      log(`Error fetching Provider VDCs: ${error}`, 'vcd-client');
+      return [];
+    }
+  }
+
+  /**
+   * Get Provider VDC capacity summary (total resource pool availability)
+   */
+  async getProviderCapacity(): Promise<{
+    cpu: { capacity: number; allocated: number; reserved: number; used: number; available: number; units: string };
+    memory: { capacity: number; allocated: number; reserved: number; used: number; available: number; units: string };
+    storage: { capacity: number; allocated: number; used: number; available: number; units: string };
+  }> {
+    try {
+      const pvdcs = await this.getProviderVdcs();
+      
+      let cpuCapacity = 0, cpuAllocated = 0, cpuReserved = 0, cpuUsed = 0;
+      let memoryCapacity = 0, memoryAllocated = 0, memoryReserved = 0, memoryUsed = 0;
+      let storageCapacity = 0, storageAllocated = 0, storageUsed = 0;
+      
+      for (const pvdc of pvdcs) {
+        // CPU capacity from computeCapacity
+        if (pvdc.computeCapacity?.cpu) {
+          const cpu = pvdc.computeCapacity.cpu;
+          cpuCapacity += cpu.total || cpu.limit || 0;
+          cpuAllocated += cpu.allocation || cpu.allocated || 0;
+          cpuReserved += cpu.reserved || 0;
+          cpuUsed += cpu.used || 0;
+        }
+        
+        // Memory capacity
+        if (pvdc.computeCapacity?.memory) {
+          const mem = pvdc.computeCapacity.memory;
+          memoryCapacity += mem.total || mem.limit || 0;
+          memoryAllocated += mem.allocation || mem.allocated || 0;
+          memoryReserved += mem.reserved || 0;
+          memoryUsed += mem.used || 0;
+        }
+        
+        // Storage from storageProfiles
+        if (pvdc.storageProfiles?.providerVdcStorageProfile) {
+          for (const sp of pvdc.storageProfiles.providerVdcStorageProfile) {
+            storageCapacity += sp.capacityTotal || 0;
+            storageAllocated += sp.capacityUsed || 0;
+            storageUsed += sp.storageUsedMB || 0;
+          }
+        }
+      }
+      
+      return {
+        cpu: {
+          capacity: cpuCapacity,
+          allocated: cpuAllocated,
+          reserved: cpuReserved,
+          used: cpuUsed,
+          available: cpuCapacity - cpuAllocated,
+          units: 'MHz'
+        },
+        memory: {
+          capacity: memoryCapacity,
+          allocated: memoryAllocated,
+          reserved: memoryReserved,
+          used: memoryUsed,
+          available: memoryCapacity - memoryAllocated,
+          units: 'MB'
+        },
+        storage: {
+          capacity: storageCapacity,
+          allocated: storageAllocated,
+          used: storageUsed,
+          available: storageCapacity - storageAllocated,
+          units: 'MB'
+        }
+      };
+    } catch (error) {
+      log(`Error fetching provider capacity: ${error}`, 'vcd-client');
+      // Return empty if we can't access provider VDCs
+      return {
+        cpu: { capacity: 0, allocated: 0, reserved: 0, used: 0, available: 0, units: 'MHz' },
+        memory: { capacity: 0, allocated: 0, reserved: 0, used: 0, available: 0, units: 'MB' },
+        storage: { capacity: 0, allocated: 0, used: 0, available: 0, units: 'MB' }
+      };
+    }
+  }
+
+  /**
    * Get comprehensive VDC data (all resources)
    */
   async getVdcComprehensive(vdcId: string): Promise<any> {

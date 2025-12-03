@@ -195,6 +195,7 @@ export default function Dashboard() {
                   <thead>
                     <tr className="border-b border-border/50">
                       <th className="text-left py-3 px-4 font-medium text-muted-foreground">Resource</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Capacity</th>
                       <th className="text-right py-3 px-4 font-medium text-muted-foreground">Allocated</th>
                       <th className="text-right py-3 px-4 font-medium text-muted-foreground">Reserved</th>
                       <th className="text-right py-3 px-4 font-medium text-muted-foreground">Used</th>
@@ -206,33 +207,37 @@ export default function Dashboard() {
                       <td className="py-3 px-4 font-medium flex items-center gap-2">
                         <Cpu className="h-4 w-4 text-cyan-500" /> CPU
                       </td>
+                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toGHz(siteSummary?.cpu?.capacity || 0)} GHz</td>
                       <td className="text-right py-3 px-4 font-mono">{toGHz(siteSummary?.cpu?.allocated || 0)} GHz</td>
                       <td className="text-right py-3 px-4 font-mono text-amber-500">{toGHz(siteSummary?.cpu?.reserved || 0)} GHz</td>
                       <td className="text-right py-3 px-4 font-mono text-blue-500">{toGHz(siteSummary?.cpu?.used || 0)} GHz</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGHz((siteSummary?.cpu?.allocated || 0) - (siteSummary?.cpu?.used || 0))} GHz</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGHz(siteSummary?.cpu?.available || 0)} GHz</td>
                     </tr>
                     <tr className="border-b border-border/30 hover:bg-muted/30">
                       <td className="py-3 px-4 font-medium flex items-center gap-2">
                         <HardDrive className="h-4 w-4 text-purple-500" /> Memory
                       </td>
+                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toGB(siteSummary?.memory?.capacity || 0)} GB</td>
                       <td className="text-right py-3 px-4 font-mono">{toGB(siteSummary?.memory?.allocated || 0)} GB</td>
                       <td className="text-right py-3 px-4 font-mono text-amber-500">{toGB(siteSummary?.memory?.reserved || 0)} GB</td>
                       <td className="text-right py-3 px-4 font-mono text-blue-500">{toGB(siteSummary?.memory?.used || 0)} GB</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGB((siteSummary?.memory?.allocated || 0) - (siteSummary?.memory?.used || 0))} GB</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGB(siteSummary?.memory?.available || 0)} GB</td>
                     </tr>
                     <tr className="border-b border-border/30 hover:bg-muted/30">
                       <td className="py-3 px-4 font-medium flex items-center gap-2">
                         <Database className="h-4 w-4 text-emerald-500" /> Storage
                       </td>
+                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toTB(siteSummary?.storage?.capacity || 0)} TB</td>
                       <td className="text-right py-3 px-4 font-mono">{toTB(siteSummary?.storage?.limit || 0)} TB</td>
                       <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
                       <td className="text-right py-3 px-4 font-mono text-blue-500">{toTB(siteSummary?.storage?.used || 0)} TB</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toTB((siteSummary?.storage?.limit || 0) - (siteSummary?.storage?.used || 0))} TB</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toTB(siteSummary?.storage?.available || 0)} TB</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
                       <td className="py-3 px-4 font-medium flex items-center gap-2">
                         <Globe className="h-4 w-4 text-orange-500" /> Public IPs
                       </td>
+                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
                       <td className="text-right py-3 px-4 font-mono">{siteSummary?.network?.totalIps || 0}</td>
                       <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
                       <td className="text-right py-3 px-4 font-mono text-blue-500">{siteSummary?.network?.usedIps || 0}</td>

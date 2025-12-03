@@ -117,20 +117,26 @@ export interface SiteSummary {
   totalVms: number;
   runningVms: number;
   cpu: {
+    capacity: number;
     allocated: number;
     used: number;
     reserved: number;
+    available: number;
     units: string;
   };
   memory: {
+    capacity: number;
     allocated: number;
     used: number;
     reserved: number;
+    available: number;
     units: string;
   };
   storage: {
+    capacity: number;
     limit: number;
     used: number;
+    available: number;
     units: string;
   };
   network: {

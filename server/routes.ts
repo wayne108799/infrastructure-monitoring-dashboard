@@ -151,7 +151,7 @@ export async function registerRoutes(
 
   /**
    * GET /api/sites/:siteId/summary
-   * Get aggregated totals for a VCD site
+   * Get aggregated totals for a VCD site including Provider VDC capacity
    */
   app.get('/api/sites/:siteId/summary', async (req, res) => {
     try {
@@ -162,7 +162,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: `VCD site not found: ${siteId}` });
       }
 
-      const vdcs = await client.getOrgVdcs();
+      // Fetch VDCs and Provider capacity in parallel
+      const [vdcs, providerCapacity] = await Promise.all([
+        client.getOrgVdcs(),
+        client.getProviderCapacity()
+      ]);
       
       // Fetch comprehensive data for each VDC (in parallel)
       const comprehensiveVdcs = await Promise.all(
@@ -175,26 +179,32 @@ export async function registerRoutes(
         })
       );
 
-      // Aggregate totals
+      // Aggregate totals from Org VDCs (what's allocated to tenants)
       const summary = {
         totalVdcs: comprehensiveVdcs.length,
         totalVms: 0,
         runningVms: 0,
         cpu: {
+          capacity: providerCapacity.cpu.capacity,
           allocated: 0,
           used: 0,
           reserved: 0,
+          available: 0,
           units: 'MHz'
         },
         memory: {
+          capacity: providerCapacity.memory.capacity,
           allocated: 0,
           used: 0,
           reserved: 0,
+          available: 0,
           units: 'MB'
         },
         storage: {
+          capacity: providerCapacity.storage.capacity,
           limit: 0,
           used: 0,
+          available: 0,
           units: 'MB'
         },
         network: {
@@ -235,6 +245,29 @@ export async function registerRoutes(
           summary.network.usedIps += vdc.network.allocatedIps.usedIpCount || 0;
           summary.network.freeIps += vdc.network.allocatedIps.freeIpCount || 0;
         }
+      }
+
+      // Calculate available = capacity - allocated (or capacity - limit for storage)
+      // If provider capacity is 0, use allocated as the capacity (PVDC query might have failed)
+      if (summary.cpu.capacity > 0) {
+        summary.cpu.available = summary.cpu.capacity - summary.cpu.allocated;
+      } else {
+        summary.cpu.capacity = summary.cpu.allocated;
+        summary.cpu.available = summary.cpu.allocated - summary.cpu.used;
+      }
+      
+      if (summary.memory.capacity > 0) {
+        summary.memory.available = summary.memory.capacity - summary.memory.allocated;
+      } else {
+        summary.memory.capacity = summary.memory.allocated;
+        summary.memory.available = summary.memory.allocated - summary.memory.used;
+      }
+      
+      if (summary.storage.capacity > 0) {
+        summary.storage.available = summary.storage.capacity - summary.storage.limit;
+      } else {
+        summary.storage.capacity = summary.storage.limit;
+        summary.storage.available = summary.storage.limit - summary.storage.used;
       }
 
       res.json(summary);
