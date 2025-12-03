@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { VDCDetailCard } from '@/components/dashboard/VDCDetailCard';
+import { ResourceBar } from '@/components/dashboard/ResourceBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Server, Database, Globe, Network, AlertCircle, Cpu, HardDrive } from 'lucide-react';
@@ -223,70 +224,129 @@ export default function Details() {
             />
           </div>
 
-          <Card className="mb-8 border-border/50">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Cpu className="h-5 w-5 text-primary" />
-                Resource Summary
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Resource</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Capacity</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Allocated</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Reserved</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Used</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Available</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-border/30 hover:bg-muted/30">
-                      <td className="py-3 px-4 font-medium flex items-center gap-2">
-                        <Cpu className="h-4 w-4 text-cyan-500" /> CPU
-                      </td>
-                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toGHz(siteSummary?.cpu?.capacity || 0)} GHz</td>
-                      <td className="text-right py-3 px-4 font-mono">{toGHz(siteSummary?.cpu?.allocated || 0)} GHz</td>
-                      <td className="text-right py-3 px-4 font-mono text-amber-500">{toGHz(siteSummary?.cpu?.reserved || 0)} GHz</td>
-                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toGHz(siteSummary?.cpu?.used || 0)} GHz</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGHz(siteSummary?.cpu?.available || 0)} GHz</td>
-                    </tr>
-                    <tr className="border-b border-border/30 hover:bg-muted/30">
-                      <td className="py-3 px-4 font-medium flex items-center gap-2">
-                        <HardDrive className="h-4 w-4 text-purple-500" /> Memory
-                      </td>
-                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toGB(siteSummary?.memory?.capacity || 0)} GB</td>
-                      <td className="text-right py-3 px-4 font-mono">{toGB(siteSummary?.memory?.allocated || 0)} GB</td>
-                      <td className="text-right py-3 px-4 font-mono text-amber-500">{toGB(siteSummary?.memory?.reserved || 0)} GB</td>
-                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toGB(siteSummary?.memory?.used || 0)} GB</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGB(siteSummary?.memory?.available || 0)} GB</td>
-                    </tr>
-                    <tr className="border-b border-border/30 hover:bg-muted/30">
-                      <td className="py-3 px-4 font-medium flex items-center gap-2">
-                        <Database className="h-4 w-4 text-emerald-500" /> Storage
-                      </td>
-                      <td className="text-right py-3 px-4 font-mono text-slate-400">{toTB(siteSummary?.storage?.capacity || 0)} TB</td>
-                      <td className="text-right py-3 px-4 font-mono">{toTB(siteSummary?.storage?.limit || 0)} TB</td>
-                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
-                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toTB(siteSummary?.storage?.used || 0)} TB</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{toTB(siteSummary?.storage?.available || 0)} TB</td>
-                    </tr>
-                    <tr className="hover:bg-muted/30">
-                      <td className="py-3 px-4 font-medium flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-orange-500" /> Public IPs
-                      </td>
-                      <td className="text-right py-3 px-4 font-mono text-slate-400">{siteSummary?.network?.totalIps || 0}</td>
-                      <td className="text-right py-3 px-4 font-mono">{siteSummary?.network?.allocatedIps || 0}</td>
-                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
-                      <td className="text-right py-3 px-4 font-mono text-blue-500">{siteSummary?.network?.usedIps || 0}</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-500">{siteSummary?.network?.freeIps || 0}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-primary" />
+              Resource Summary
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border-border/50 bg-card/50">
+                <CardContent className="p-5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                    <Cpu className="h-3.5 w-3.5 text-cyan-500" /> CPU
+                  </h4>
+                  <ResourceBar
+                    label="Usage"
+                    data={{
+                      Used: siteSummary?.cpu?.used || 0,
+                      Limit: siteSummary?.cpu?.capacity || 0,
+                      Reserved: siteSummary?.cpu?.reserved || 0,
+                      Units: 'MHz',
+                      Allocated: siteSummary?.cpu?.allocated || 0
+                    }}
+                    color="bg-cyan-500"
+                    type="compute"
+                  />
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-foreground">{toGHz(siteSummary?.cpu?.capacity || 0)}</div>
+                      <div className="text-muted-foreground">Capacity GHz</div>
+                    </div>
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-cyan-500">{toGHz(siteSummary?.cpu?.allocated || 0)}</div>
+                      <div className="text-muted-foreground">Allocated GHz</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50 bg-card/50">
+                <CardContent className="p-5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                    <HardDrive className="h-3.5 w-3.5 text-purple-500" /> Memory
+                  </h4>
+                  <ResourceBar
+                    label="Usage"
+                    data={{
+                      Used: siteSummary?.memory?.used || 0,
+                      Limit: siteSummary?.memory?.capacity || 0,
+                      Reserved: siteSummary?.memory?.reserved || 0,
+                      Units: 'MB',
+                      Allocated: siteSummary?.memory?.allocated || 0
+                    }}
+                    color="bg-purple-500"
+                    type="compute"
+                  />
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-foreground">{toGB(siteSummary?.memory?.capacity || 0)}</div>
+                      <div className="text-muted-foreground">Capacity GB</div>
+                    </div>
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-purple-500">{toGB(siteSummary?.memory?.allocated || 0)}</div>
+                      <div className="text-muted-foreground">Allocated GB</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50 bg-card/50">
+                <CardContent className="p-5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                    <Database className="h-3.5 w-3.5 text-emerald-500" /> Storage
+                  </h4>
+                  <ResourceBar
+                    label="Usage"
+                    storageData={{
+                      used: siteSummary?.storage?.used || 0,
+                      limit: siteSummary?.storage?.capacity || 0,
+                      units: 'MB'
+                    }}
+                    color="bg-emerald-500"
+                    type="storage"
+                  />
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-foreground">{toTB(siteSummary?.storage?.capacity || 0)}</div>
+                      <div className="text-muted-foreground">Capacity TB</div>
+                    </div>
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-emerald-500">{toTB(siteSummary?.storage?.limit || 0)}</div>
+                      <div className="text-muted-foreground">Allocated TB</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50 bg-card/50">
+                <CardContent className="p-5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                    <Globe className="h-3.5 w-3.5 text-orange-500" /> Public IPs
+                  </h4>
+                  <ResourceBar
+                    label="Allocation"
+                    ipData={{
+                      totalIpCount: siteSummary?.network?.totalIps || 0,
+                      usedIpCount: siteSummary?.network?.usedIps || 0,
+                      freeIpCount: siteSummary?.network?.freeIps || 0
+                    }}
+                    color="bg-orange-500"
+                    type="network"
+                  />
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-foreground">{siteSummary?.network?.totalIps || 0}</div>
+                      <div className="text-muted-foreground">Total IPs</div>
+                    </div>
+                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                      <div className="font-mono font-medium text-orange-500">{siteSummary?.network?.allocatedIps || 0}</div>
+                      <div className="text-muted-foreground">Allocated</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
 
           <div>
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
