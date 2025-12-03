@@ -645,27 +645,37 @@ export class VcdClient {
       // Fetch the storage profile details directly
       const profile = await this.request<any>(`/api/admin/pvdcStorageProfile/${id}`);
       
-      // VCD returns capacityTotal in KB, we need to convert to MB for consistency
-      // capacityTotal is in KB (1024 bytes), convert to MB by dividing by 1024
+      // Log all available fields to find the correct capacity field
+      log(`Provider Storage Profile "${profile.name}" raw fields: storageTotalMB=${profile.storageTotalMB}, storageUsedMB=${profile.storageUsedMB}, capacityTotal=${profile.capacityTotal}, capacityUsed=${profile.capacityUsed}, limit=${profile.limit}, units=${profile.units}, providerVdcStorageCapacityMB=${profile.providerVdcStorageCapacityMB}`, 'vcd-client');
+      
+      // VCD 10.6 may report storage in different fields depending on configuration
+      // Try multiple potential capacity sources in order of preference:
+      // 1. storageTotalMB - actual backing storage capacity in MB
+      // 2. providerVdcStorageCapacityMB - provider capacity
+      // 3. capacityTotal - may be in KB, need to convert
       let capacityMB = 0;
       let usedMB = 0;
       
-      if (profile.storageTotalMB) {
-        // Already in MB
+      if (profile.storageTotalMB && profile.storageTotalMB > 0) {
+        // Already in MB - this is the vCenter backing storage
         capacityMB = profile.storageTotalMB;
+      } else if (profile.providerVdcStorageCapacityMB && profile.providerVdcStorageCapacityMB > 0) {
+        capacityMB = profile.providerVdcStorageCapacityMB;
       } else if (profile.capacityTotal) {
         // capacityTotal is in KB, convert to MB
         capacityMB = Math.round(profile.capacityTotal / 1024);
       }
       
-      if (profile.storageUsedMB) {
+      if (profile.storageUsedMB && profile.storageUsedMB > 0) {
         usedMB = profile.storageUsedMB;
+      } else if (profile.capacityUsed) {
+        // capacityUsed might be in KB, convert to MB
+        usedMB = Math.round(profile.capacityUsed / 1024);
       } else if (profile.storageUsed) {
-        // storageUsed might be in KB, convert to MB
         usedMB = Math.round(profile.storageUsed / 1024);
       }
       
-      log(`Provider Storage Profile "${profile.name}": capacityTotal=${profile.capacityTotal}KB -> ${capacityMB}MB, used=${usedMB}MB`, 'vcd-client');
+      log(`Provider Storage Profile "${profile.name}": resolved capacity=${capacityMB}MB, used=${usedMB}MB`, 'vcd-client');
       
       return {
         name: profile.name || 'Unknown',
@@ -725,12 +735,15 @@ export class VcdClient {
     try {
       const pvdcs = await this.getProviderVdcs();
       
+      log(`Found ${pvdcs.length} Provider VDC(s)`, 'vcd-client');
+      
       let cpuCapacity = 0, cpuAllocated = 0, cpuReserved = 0, cpuUsed = 0;
       let memoryCapacity = 0, memoryAllocated = 0, memoryReserved = 0, memoryUsed = 0;
       let storageCapacity = 0, storageAllocated = 0, storageUsed = 0;
       const storageTierMap: Record<string, { capacity: number; used: number }> = {};
       
       for (const pvdc of pvdcs) {
+        log(`Processing Provider VDC: ${pvdc.name}`, 'vcd-client');
         // CPU capacity from computeCapacity
         if (pvdc.computeCapacity?.cpu) {
           const cpu = pvdc.computeCapacity.cpu;
@@ -790,6 +803,7 @@ export class VcdClient {
       }));
       
       log(`Provider VDC Total Storage: capacity=${storageCapacity}MB, used=${storageUsed}MB`, 'vcd-client');
+      log(`Storage tiers aggregated: ${storageTiers.map(t => `${t.name}=${t.capacity}MB`).join(', ')}`, 'vcd-client');
       
       return {
         cpu: {
