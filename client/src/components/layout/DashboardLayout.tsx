@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -26,7 +26,7 @@ function AppSidebar() {
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Overview', href: '/' },
-    { icon: Server, label: 'Resources', href: '/resources' },
+    { icon: List, label: 'Details', href: '/details' },
     { icon: Activity, label: 'Health', href: '/health' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
