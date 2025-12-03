@@ -478,8 +478,8 @@ export async function registerRoutes(
         return res.json({ success: false, message: 'Client not initialized' });
       }
 
-      const result = await client.testConnection();
-      res.json(result);
+      const success = await client.testConnection();
+      res.json({ success, message: success ? 'Connection successful' : 'Connection failed' });
     } catch (error: any) {
       log(`Error testing site connection: ${error.message}`, 'routes');
       res.json({ success: false, error: error.message });
