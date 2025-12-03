@@ -141,6 +141,7 @@ export interface SiteSummary {
   };
   network: {
     totalIps: number;
+    allocatedIps: number;
     usedIps: number;
     freeIps: number;
   };

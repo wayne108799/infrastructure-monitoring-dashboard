@@ -469,7 +469,39 @@ export class VcdClient {
   }
 
   /**
-   * Get IP allocation data from Edge Gateway
+   * Get all Edge Gateways (for total IP summary)
+   */
+  async getAllEdgeGateways(): Promise<EdgeGatewayResponse[]> {
+    try {
+      const response = await this.request<{ values: EdgeGatewayResponse[] }>(
+        `/cloudapi/1.0.0/edgeGateways?pageSize=100`
+      );
+      
+      return response.values || [];
+    } catch (error) {
+      log(`Error fetching all edge gateways: ${error}`, 'vcd-client');
+      return [];
+    }
+  }
+
+  /**
+   * Get External Networks (Provider networks with IP pools)
+   */
+  async getExternalNetworks(): Promise<any[]> {
+    try {
+      const response = await this.request<{ values: any[] }>(
+        `/cloudapi/1.0.0/externalNetworks?pageSize=100`
+      );
+      
+      return response.values || [];
+    } catch (error) {
+      log(`Error fetching external networks: ${error}`, 'vcd-client');
+      return [];
+    }
+  }
+
+  /**
+   * Get IP allocation data from Edge Gateway with detailed used IP query
    */
   async getIpAllocations(edgeGatewayId: string): Promise<{
     totalIpCount: number;
@@ -504,6 +536,18 @@ export class VcdClient {
         }
       }
 
+      // If usedIpCount is 0, try to get allocated IPs from the gateway's used IP endpoint
+      if (usedIpCount === 0) {
+        try {
+          const usedIpsResponse = await this.request<{ values?: any[], resultTotal?: number }>(
+            `/cloudapi/1.0.0/edgeGateways/${edgeGatewayId}/usedIpAddresses?pageSize=100`
+          );
+          usedIpCount = usedIpsResponse.resultTotal || (usedIpsResponse.values?.length || 0);
+        } catch (e) {
+          // Ignore - usedIpAddresses endpoint might not be available
+        }
+      }
+
       return {
         totalIpCount,
         usedIpCount,
@@ -527,6 +571,67 @@ export class VcdClient {
       (mask >>> 8) & 0xff,
       mask & 0xff
     ].join('.');
+  }
+
+  /**
+   * Get site-wide IP summary from external networks
+   * Returns total available IPs, allocated (assigned to edge gateways), and used
+   */
+  async getSiteIpSummary(): Promise<{
+    totalIps: number;
+    allocatedIps: number;
+    usedIps: number;
+    freeIps: number;
+  }> {
+    try {
+      let totalIps = 0;
+      let allocatedIps = 0;
+      let usedIps = 0;
+
+      // Get external networks to find total IP pool
+      const externalNetworks = await this.getExternalNetworks();
+      
+      for (const extNet of externalNetworks) {
+        // Each external network has subnets with IP ranges
+        if (extNet.subnets?.values) {
+          for (const subnet of extNet.subnets.values) {
+            totalIps += subnet.totalIpCount || 0;
+            usedIps += subnet.usedIpCount || 0;
+          }
+        }
+      }
+
+      // Also query all edge gateways to get allocated IPs
+      const allGateways = await this.getAllEdgeGateways();
+      
+      for (const gw of allGateways) {
+        try {
+          // Get IP allocations per gateway
+          const ipData = await this.getIpAllocations(gw.id);
+          allocatedIps += ipData.totalIpCount;
+          // usedIps is already counted from external networks
+        } catch (e) {
+          // Skip failed gateway queries
+        }
+      }
+
+      // If external network query didn't return IPs, use allocated as total
+      if (totalIps === 0) {
+        totalIps = allocatedIps;
+      }
+
+      log(`Site IP Summary: Total=${totalIps}, Allocated=${allocatedIps}, Used=${usedIps}`, 'vcd-client');
+
+      return {
+        totalIps,
+        allocatedIps,
+        usedIps,
+        freeIps: totalIps - usedIps
+      };
+    } catch (error) {
+      log(`Error fetching site IP summary: ${error}`, 'vcd-client');
+      return { totalIps: 0, allocatedIps: 0, usedIps: 0, freeIps: 0 };
+    }
   }
 
   /**

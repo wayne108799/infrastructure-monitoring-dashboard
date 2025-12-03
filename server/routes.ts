@@ -162,10 +162,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: `VCD site not found: ${siteId}` });
       }
 
-      // Fetch VDCs and Provider capacity in parallel
-      const [vdcs, providerCapacity] = await Promise.all([
+      // Fetch VDCs, Provider capacity, and Site IP summary in parallel
+      const [vdcs, providerCapacity, siteIpSummary] = await Promise.all([
         client.getOrgVdcs(),
-        client.getProviderCapacity()
+        client.getProviderCapacity(),
+        client.getSiteIpSummary()
       ]);
       
       // Fetch comprehensive data for each VDC (in parallel)
@@ -208,9 +209,10 @@ export async function registerRoutes(
           units: 'MB'
         },
         network: {
-          totalIps: 0,
-          usedIps: 0,
-          freeIps: 0
+          totalIps: siteIpSummary.totalIps,
+          allocatedIps: siteIpSummary.allocatedIps,
+          usedIps: siteIpSummary.usedIps,
+          freeIps: siteIpSummary.freeIps
         }
       };
 
@@ -237,13 +239,6 @@ export async function registerRoutes(
             summary.storage.limit += profile.limit || 0;
             summary.storage.used += profile.used || 0;
           }
-        }
-        
-        // Aggregate network IPs
-        if (vdc.network?.allocatedIps) {
-          summary.network.totalIps += vdc.network.allocatedIps.totalIpCount || 0;
-          summary.network.usedIps += vdc.network.allocatedIps.usedIpCount || 0;
-          summary.network.freeIps += vdc.network.allocatedIps.freeIpCount || 0;
         }
       }
 

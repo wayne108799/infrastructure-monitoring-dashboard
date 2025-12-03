@@ -170,9 +170,9 @@ export default function Dashboard() {
             />
             <StatCard
               title="Public IPs"
-              value={`${siteSummary?.network?.totalIps || 0}`}
+              value={`${siteSummary?.network?.allocatedIps || 0} / ${siteSummary?.network?.totalIps || 0}`}
               icon={Globe}
-              subtext={`${siteSummary?.network?.usedIps || 0} Used / ${siteSummary?.network?.freeIps || 0} Available`}
+              subtext={`${siteSummary?.network?.usedIps || 0} In Use / ${siteSummary?.network?.freeIps || 0} Free`}
               warning={siteSummary && siteSummary.network?.totalIps > 0 && (siteSummary.network?.usedIps / siteSummary.network?.totalIps) > 0.9}
             />
             <StatCard
@@ -237,8 +237,8 @@ export default function Dashboard() {
                       <td className="py-3 px-4 font-medium flex items-center gap-2">
                         <Globe className="h-4 w-4 text-orange-500" /> Public IPs
                       </td>
-                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
-                      <td className="text-right py-3 px-4 font-mono">{siteSummary?.network?.totalIps || 0}</td>
+                      <td className="text-right py-3 px-4 font-mono text-slate-400">{siteSummary?.network?.totalIps || 0}</td>
+                      <td className="text-right py-3 px-4 font-mono">{siteSummary?.network?.allocatedIps || 0}</td>
                       <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
                       <td className="text-right py-3 px-4 font-mono text-blue-500">{siteSummary?.network?.usedIps || 0}</td>
                       <td className="text-right py-3 px-4 font-mono text-green-500">{siteSummary?.network?.freeIps || 0}</td>
