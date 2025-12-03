@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { mockSites, Site } from '@/lib/mockData';
+import { mockSites } from '@/lib/mockData';
 import { VDCDetailCard } from '@/components/dashboard/VDCDetailCard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Activity, Server, Database, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Activity, Server, Database, AlertTriangle, CheckCircle2, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
@@ -12,14 +12,26 @@ export default function Dashboard() {
   
   const selectedSite = mockSites.find(s => s.id === selectedSiteId) || mockSites[0];
 
-  // Aggregate stats for the site
-  const siteStats = selectedSite.vdcs.reduce((acc, vdc) => ({
-    totalVMs: acc.totalVMs + vdc.vms,
-    totalCpuUsed: acc.totalCpuUsed + vdc.cpu.used,
-    totalCpuTotal: acc.totalCpuTotal + vdc.cpu.total,
-    totalMemUsed: acc.totalMemUsed + vdc.memory.used,
-    totalMemTotal: acc.totalMemTotal + vdc.memory.total,
-  }), { totalVMs: 0, totalCpuUsed: 0, totalCpuTotal: 0, totalMemUsed: 0, totalMemTotal: 0 });
+  // Aggregate stats for the site (updated for new schema)
+  const siteStats = selectedSite.orgVdcs.reduce((acc, vdc) => ({
+    totalCpuUsed: acc.totalCpuUsed + vdc.computeCapacity.Cpu.Used,
+    totalCpuLimit: acc.totalCpuLimit + vdc.computeCapacity.Cpu.Limit,
+    totalMemUsed: acc.totalMemUsed + vdc.computeCapacity.Memory.Used,
+    totalMemLimit: acc.totalMemLimit + vdc.computeCapacity.Memory.Limit,
+    totalStorageUsed: acc.totalStorageUsed + vdc.storageProfiles.reduce((s, p) => s + p.used, 0),
+    totalStorageLimit: acc.totalStorageLimit + vdc.storageProfiles.reduce((s, p) => s + p.limit, 0),
+    vdcCount: acc.vdcCount + 1
+  }), { 
+    totalCpuUsed: 0, totalCpuLimit: 0, 
+    totalMemUsed: 0, totalMemLimit: 0,
+    totalStorageUsed: 0, totalStorageLimit: 0,
+    vdcCount: 0
+  });
+
+  // Helpers for display
+  const toGHz = (mhz: number) => (mhz / 1000).toFixed(0);
+  const toGB = (mb: number) => (mb / 1024).toFixed(0);
+  const toTB = (mb: number) => (mb / 1024 / 1024).toFixed(1);
 
   return (
     <DashboardLayout>
@@ -28,13 +40,13 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Infrastructure Overview</h1>
-          <p className="text-muted-foreground mt-1">Monitor resource consumption across virtual data centers.</p>
+          <p className="text-muted-foreground mt-1">Monitor Organization VDCs and resource consumption.</p>
         </div>
         
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground font-medium">Select Site:</span>
           <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-            <SelectTrigger className="w-[240px] bg-card border-border">
+            <SelectTrigger className="w-[260px] bg-card border-border">
               <SelectValue placeholder="Select a site" />
             </SelectTrigger>
             <SelectContent>
@@ -42,7 +54,8 @@ export default function Dashboard() {
                 <SelectItem key={site.id} value={site.id}>
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${site.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    {site.name}
+                    <span className="font-medium">{site.name}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{site.location}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -54,33 +67,33 @@ export default function Dashboard() {
       {/* High Level Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard 
-          title="Total VMs" 
-          value={siteStats.totalVMs.toString()} 
-          icon={Server} 
-          trend="+12%" 
+          title="Org VDCs" 
+          value={siteStats.vdcCount.toString()} 
+          icon={Globe} 
+          trend="Active" 
           trendUp={true}
         />
         <StatCard 
-          title="CPU Utilization" 
-          value={`${Math.round((siteStats.totalCpuUsed / siteStats.totalCpuTotal) * 100)}%`} 
+          title="Total CPU Alloc" 
+          value={`${Math.round((siteStats.totalCpuUsed / (siteStats.totalCpuLimit || 1)) * 100)}%`} 
           icon={Activity} 
-          subtext={`${siteStats.totalCpuUsed} / ${siteStats.totalCpuTotal} GHz`}
+          subtext={`${toGHz(siteStats.totalCpuUsed)} / ${toGHz(siteStats.totalCpuLimit)} GHz`}
         />
         <StatCard 
-          title="Memory Usage" 
-          value={`${Math.round((siteStats.totalMemUsed / siteStats.totalMemTotal) * 100)}%`} 
+          title="Total Memory Alloc" 
+          value={`${Math.round((siteStats.totalMemUsed / (siteStats.totalMemLimit || 1)) * 100)}%`} 
           icon={Database} 
-          subtext={`${siteStats.totalMemUsed.toFixed(1)} / ${siteStats.totalMemTotal.toFixed(1)} TB`}
+          subtext={`${toGB(siteStats.totalMemUsed)} / ${toGB(siteStats.totalMemLimit)} GB`}
         />
         <Card className="bg-card border-border relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Site Status</h3>
-                {selectedSite.status === 'online' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                <h3 className="text-sm font-medium text-muted-foreground">Storage Used</h3>
+                <Database className="h-4 w-4 text-emerald-500" />
               </div>
-              <div className="text-2xl font-bold capitalize">{selectedSite.status}</div>
-              <p className="text-xs text-muted-foreground mt-1">{selectedSite.location}</p>
+              <div className="text-2xl font-bold font-mono">{toTB(siteStats.totalStorageUsed)} TB</div>
+              <p className="text-xs text-muted-foreground mt-1">of {toTB(siteStats.totalStorageLimit)} TB Total Capacity</p>
             </CardContent>
         </Card>
       </div>
@@ -88,16 +101,17 @@ export default function Dashboard() {
       {/* VDC Grid */}
       <div>
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <CloudServerIcon className="h-5 w-5 text-primary" />
-          Virtual Data Centers
+          <Server className="h-5 w-5 text-primary" />
+          Organization VDCs
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {selectedSite.vdcs.map((vdc, idx) => (
+          {selectedSite.orgVdcs.map((vdc, idx) => (
             <motion.div
               key={vdc.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
+              className="h-full"
             >
               <VDCDetailCard vdc={vdc} />
             </motion.div>
@@ -131,26 +145,4 @@ function StatCard({ title, value, icon: Icon, trend, trendUp, subtext }: any) {
       </CardContent>
     </Card>
   );
-}
-
-function CloudServerIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-      <line x1="6" y1="6" x2="6.01" y2="6" />
-      <line x1="6" y1="18" x2="6.01" y2="18" />
-    </svg>
-  )
 }
