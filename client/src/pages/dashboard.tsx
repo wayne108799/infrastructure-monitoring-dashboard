@@ -85,7 +85,8 @@ export default function Dashboard() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Connection Error</AlertTitle>
           <AlertDescription>
-            Unable to connect to infrastructure platforms. Please check your configuration in the Secrets tab.
+            Unable to connect to infrastructure platforms. Please check your configuration in{' '}
+            <a href="/settings" className="underline font-medium">Settings</a>.
             <br />
             <span className="text-xs mt-2 block">Error: {(sitesError as Error).message}</span>
           </AlertDescription>
@@ -114,7 +115,8 @@ export default function Dashboard() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>No Sites Configured</AlertTitle>
           <AlertDescription>
-            Please configure your virtualization platform sites in the Secrets tab.
+            Please configure your virtualization platform sites in{' '}
+            <a href="/settings" className="underline font-medium">Settings</a>.
             <br />
             <span className="text-sm mt-2 block text-muted-foreground">
               Supported platforms: VMware Cloud Director (VCD), Apache CloudStack, Proxmox VE

@@ -160,6 +160,93 @@ export class PlatformRegistry {
       info: client.getSiteInfo(),
     }));
   }
+
+  /**
+   * Add a site from database configuration
+   */
+  addSiteFromConfig(siteConfig: {
+    siteId: string;
+    platformType: string;
+    name: string;
+    location: string;
+    url: string;
+    username?: string | null;
+    password?: string | null;
+    org?: string | null;
+    apiKey?: string | null;
+    secretKey?: string | null;
+    realm?: string | null;
+    isEnabled?: boolean | null;
+  }): void {
+    if (siteConfig.isEnabled === false) {
+      log(`Site ${siteConfig.siteId} is disabled. Skipping.`, 'platform-registry');
+      return;
+    }
+
+    const platformType = siteConfig.platformType as PlatformType;
+    const clientId = `${platformType}:${siteConfig.siteId}`;
+
+    if (this.clients.has(clientId)) {
+      log(`Site ${siteConfig.siteId} already exists. Removing old client.`, 'platform-registry');
+      this.clients.delete(clientId);
+    }
+
+    const config: PlatformConfig = {
+      type: platformType,
+      id: siteConfig.siteId,
+      name: siteConfig.name,
+      location: siteConfig.location,
+      url: siteConfig.url,
+      username: siteConfig.username || '',
+      password: siteConfig.password || '',
+      org: siteConfig.org || undefined,
+      apiKey: siteConfig.apiKey || undefined,
+      secretKey: siteConfig.secretKey || undefined,
+      realm: siteConfig.realm || undefined,
+    };
+
+    try {
+      const client = createPlatformClient(config);
+      this.clients.set(clientId, client);
+      log(`Added ${platformType.toUpperCase()} client for site: ${siteConfig.siteId}`, 'platform-registry');
+    } catch (error) {
+      log(`Failed to create ${platformType} client for ${siteConfig.siteId}: ${error}`, 'platform-registry');
+    }
+  }
+
+  /**
+   * Remove a site from the registry
+   */
+  removeSite(siteId: string, platformType: PlatformType): void {
+    const clientId = `${platformType}:${siteId}`;
+    if (this.clients.has(clientId)) {
+      this.clients.delete(clientId);
+      log(`Removed ${platformType.toUpperCase()} client for site: ${siteId}`, 'platform-registry');
+    }
+  }
+
+  /**
+   * Initialize sites from database
+   */
+  async initializeFromDatabase(sites: Array<{
+    siteId: string;
+    platformType: string;
+    name: string;
+    location: string;
+    url: string;
+    username?: string | null;
+    password?: string | null;
+    org?: string | null;
+    apiKey?: string | null;
+    secretKey?: string | null;
+    realm?: string | null;
+    isEnabled?: boolean | null;
+  }>): Promise<void> {
+    log(`Loading ${sites.length} sites from database...`, 'platform-registry');
+    for (const site of sites) {
+      this.addSiteFromConfig(site);
+    }
+  }
 }
 
 // Global registry instance

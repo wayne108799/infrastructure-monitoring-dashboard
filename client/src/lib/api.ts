@@ -283,3 +283,102 @@ export function getPlatformColor(type: PlatformType): string {
       return '#6B7280';
   }
 }
+
+export interface PlatformSiteConfig {
+  id: string;
+  siteId: string;
+  platformType: PlatformType;
+  name: string;
+  location: string;
+  url: string;
+  username?: string | null;
+  password?: string | null;
+  org?: string | null;
+  apiKey?: string | null;
+  secretKey?: string | null;
+  realm?: string | null;
+  isEnabled?: boolean | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePlatformSiteConfig {
+  siteId: string;
+  platformType: PlatformType;
+  name: string;
+  location: string;
+  url: string;
+  username?: string;
+  password?: string;
+  org?: string;
+  apiKey?: string;
+  secretKey?: string;
+  realm?: string;
+  isEnabled?: boolean;
+}
+
+/**
+ * Fetch all configured platform sites
+ */
+export async function fetchConfiguredSites(): Promise<PlatformSiteConfig[]> {
+  const response = await fetch('/api/config/sites');
+  if (!response.ok) {
+    throw new Error('Failed to fetch configured sites');
+  }
+  return response.json();
+}
+
+/**
+ * Create a new platform site configuration
+ */
+export async function createSiteConfig(config: CreatePlatformSiteConfig): Promise<PlatformSiteConfig> {
+  const response = await fetch('/api/config/sites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create site configuration');
+  }
+  return response.json();
+}
+
+/**
+ * Update an existing platform site configuration
+ */
+export async function updateSiteConfig(id: string, config: Partial<CreatePlatformSiteConfig>): Promise<PlatformSiteConfig> {
+  const response = await fetch(`/api/config/sites/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update site configuration');
+  }
+  return response.json();
+}
+
+/**
+ * Delete a platform site configuration
+ */
+export async function deleteSiteConfig(id: string): Promise<void> {
+  const response = await fetch(`/api/config/sites/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to delete site configuration');
+  }
+}
+
+/**
+ * Test connection to a configured site
+ */
+export async function testSiteConfigConnection(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const response = await fetch(`/api/config/sites/${id}/test`, {
+    method: 'POST',
+  });
+  return response.json();
+}

@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary } from "./lib/platforms";
+import { storage } from "./storage";
+import { insertPlatformSiteSchema, updatePlatformSiteSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -10,6 +12,16 @@ export async function registerRoutes(
   
   // Initialize all platform clients from environment
   platformRegistry.initializeFromEnv();
+  
+  // Also load sites from database
+  try {
+    const dbSites = await storage.getAllPlatformSites();
+    if (dbSites.length > 0) {
+      await platformRegistry.initializeFromDatabase(dbSites);
+    }
+  } catch (error) {
+    log(`Warning: Could not load sites from database: ${error}`, 'routes');
+  }
 
   /**
    * GET /api/sites
@@ -316,6 +328,160 @@ export async function registerRoutes(
     } catch (error: any) {
       log(`Error fetching aggregated summary: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/config/sites
+   * Get all configured platform sites from database
+   */
+  app.get('/api/config/sites', async (req, res) => {
+    try {
+      const sites = await storage.getAllPlatformSites();
+      const safeSites = sites.map(site => ({
+        ...site,
+        password: site.password ? '********' : null,
+        secretKey: site.secretKey ? '********' : null,
+      }));
+      res.json(safeSites);
+    } catch (error: any) {
+      log(`Error fetching configured sites: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/config/sites/:id
+   * Get a specific platform site configuration
+   */
+  app.get('/api/config/sites/:id', async (req, res) => {
+    try {
+      const site = await storage.getPlatformSite(req.params.id);
+      if (!site) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+      const safeSite = {
+        ...site,
+        password: site.password ? '********' : null,
+        secretKey: site.secretKey ? '********' : null,
+      };
+      res.json(safeSite);
+    } catch (error: any) {
+      log(`Error fetching site config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/config/sites
+   * Create a new platform site configuration
+   */
+  app.post('/api/config/sites', async (req, res) => {
+    try {
+      const parsed = insertPlatformSiteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request body', details: parsed.error.errors });
+      }
+
+      const existing = await storage.getPlatformSiteBySiteId(parsed.data.siteId);
+      if (existing) {
+        return res.status(409).json({ error: 'Site ID already exists' });
+      }
+
+      const site = await storage.createPlatformSite(parsed.data);
+      
+      platformRegistry.addSiteFromConfig(site);
+      
+      log(`Created new platform site: ${site.siteId} (${site.platformType})`, 'routes');
+      res.status(201).json({ ...site, password: '********', secretKey: site.secretKey ? '********' : null });
+    } catch (error: any) {
+      log(`Error creating site config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * PUT /api/config/sites/:id
+   * Update an existing platform site configuration
+   */
+  app.put('/api/config/sites/:id', async (req, res) => {
+    try {
+      const parsed = updatePlatformSiteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request body', details: parsed.error.errors });
+      }
+
+      const existingSite = await storage.getPlatformSite(req.params.id);
+      if (!existingSite) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+
+      if (parsed.data.password === '********') {
+        delete parsed.data.password;
+      }
+      if (parsed.data.secretKey === '********') {
+        delete parsed.data.secretKey;
+      }
+
+      const site = await storage.updatePlatformSite(req.params.id, parsed.data);
+      if (!site) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+
+      platformRegistry.removeSite(existingSite.siteId, existingSite.platformType as PlatformType);
+      platformRegistry.addSiteFromConfig(site);
+      
+      log(`Updated platform site: ${site.siteId} (${site.platformType})`, 'routes');
+      res.json({ ...site, password: '********', secretKey: site.secretKey ? '********' : null });
+    } catch (error: any) {
+      log(`Error updating site config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * DELETE /api/config/sites/:id
+   * Delete a platform site configuration
+   */
+  app.delete('/api/config/sites/:id', async (req, res) => {
+    try {
+      const existingSite = await storage.getPlatformSite(req.params.id);
+      if (!existingSite) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+
+      await storage.deletePlatformSite(req.params.id);
+      platformRegistry.removeSite(existingSite.siteId, existingSite.platformType as PlatformType);
+      
+      log(`Deleted platform site: ${existingSite.siteId}`, 'routes');
+      res.status(204).send();
+    } catch (error: any) {
+      log(`Error deleting site config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/config/sites/:id/test
+   * Test connection to a configured site
+   */
+  app.post('/api/config/sites/:id/test', async (req, res) => {
+    try {
+      const site = await storage.getPlatformSite(req.params.id);
+      if (!site) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+
+      const client = platformRegistry.getClientBySiteId(site.siteId);
+      if (!client) {
+        return res.json({ success: false, message: 'Client not initialized' });
+      }
+
+      const result = await client.testConnection();
+      res.json(result);
+    } catch (error: any) {
+      log(`Error testing site connection: ${error.message}`, 'routes');
+      res.json({ success: false, error: error.message });
     }
   });
 
