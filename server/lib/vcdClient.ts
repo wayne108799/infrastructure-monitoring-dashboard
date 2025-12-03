@@ -7,6 +7,7 @@ export interface VcdConfig {
   username: string;
   password: string;
   org: string;
+  vcpuInMhz?: number; // vCPU speed in MHz (default 2000)
 }
 
 export interface VcdSession {
@@ -256,13 +257,16 @@ export class VcdClient {
   }
 
   /**
-   * Get VDC details by ID using CloudAPI (which accepts URN format)
+   * Get VDC details by ID using legacy API (returns full ComputeCapacity)
    */
   async getVdcDetails(vdcId: string): Promise<any> {
     try {
-      // Use CloudAPI which handles the URN format properly
+      // Extract UUID from URN for legacy API
+      const uuid = this.extractUuid(vdcId);
+      
+      // Use legacy API which returns full ComputeCapacity data
       const response = await this.request<any>(
-        `/cloudapi/1.0.0/vdcs/${vdcId}`
+        `/api/vdc/${uuid}`
       );
       
       return response;
@@ -273,16 +277,65 @@ export class VcdClient {
   }
 
   /**
+   * Get VM resources for a VDC (to calculate actual usage)
+   */
+  async getVdcVmResources(vdcId: string): Promise<{ cpuUsed: number; memoryUsed: number; vmCount: number; runningVmCount: number }> {
+    try {
+      const uuid = this.extractUuid(vdcId);
+      
+      // Query all VMs in this VDC
+      const response = await this.request<{ record?: any[] }>(
+        `/api/query?type=vm&filter=(vdc==${uuid})&fields=name,status,numberOfCpus,memoryMB,isDeployed`
+      );
+      
+      const vms = response.record || [];
+      let cpuUsed = 0;
+      let memoryUsed = 0;
+      let runningVmCount = 0;
+      
+      for (const vm of vms) {
+        // Status 4 = POWERED_ON
+        if (vm.status === 4 || vm.isDeployed) {
+          cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000); // Assume 2GHz per vCPU if not specified
+          memoryUsed += vm.memoryMB || 0;
+          runningVmCount++;
+        }
+      }
+      
+      return {
+        cpuUsed,
+        memoryUsed,
+        vmCount: vms.length,
+        runningVmCount
+      };
+    } catch (error) {
+      log(`Error fetching VM resources for ${vdcId}: ${error}`, 'vcd-client');
+      return { cpuUsed: 0, memoryUsed: 0, vmCount: 0, runningVmCount: 0 };
+    }
+  }
+
+  /**
    * Get storage profiles for a VDC using the query API
    */
   async getVdcStorageProfiles(vdcId: string): Promise<any[]> {
     try {
+      const uuid = this.extractUuid(vdcId);
+      
       // Use query API to get storage profiles associated with this VDC
-      const response = await this.request<{ record: any[] }>(
-        `/api/query?type=orgVdcStorageProfile&filter=(vdc==${vdcId})`
+      const response = await this.request<{ record?: any[] }>(
+        `/api/query?type=orgVdcStorageProfile&filter=(vdc==${uuid})&fields=name,storageLimitMB,storageUsedMB,isEnabled,isDefaultStorageProfile`
       );
       
-      return response.record || [];
+      const records = response.record || [];
+      return records.map(r => ({
+        id: r.href?.split('/').pop() || r.name,
+        name: r.name,
+        limit: r.storageLimitMB || 0,
+        used: r.storageUsedMB || 0,
+        units: 'MB',
+        default: r.isDefaultStorageProfile || false,
+        enabled: r.isEnabled !== false
+      }));
     } catch (error) {
       log(`Error fetching storage profiles for ${vdcId}: ${error}`, 'vcd-client');
       return [];
@@ -371,10 +424,11 @@ export class VcdClient {
    */
   async getVdcComprehensive(vdcId: string): Promise<any> {
     try {
-      const [details, storageProfiles, edgeGateways] = await Promise.all([
+      const [details, storageProfiles, edgeGateways, vmResources] = await Promise.all([
         this.getVdcDetails(vdcId),
         this.getVdcStorageProfiles(vdcId),
-        this.getEdgeGateways(vdcId)
+        this.getEdgeGateways(vdcId),
+        this.getVdcVmResources(vdcId)
       ]);
 
       // Get IP allocations from first edge gateway
@@ -386,6 +440,7 @@ export class VcdClient {
       return {
         ...details,
         storageProfiles,
+        vmResources,
         network: {
           allocatedIps: ipAllocations
         }

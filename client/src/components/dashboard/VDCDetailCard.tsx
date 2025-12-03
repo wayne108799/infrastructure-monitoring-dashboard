@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { Cpu, Database, Globe, Building2 } from 'lucide-react';
+import { Cpu, Database, Globe, Building2, Server } from 'lucide-react';
 import type { OrgVdc } from '@/lib/api';
 
 interface VDCDetailCardProps {
@@ -11,15 +11,27 @@ interface VDCDetailCardProps {
 }
 
 export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
-  const cpuUsed = vdc.computeCapacity?.cpu?.used || 0;
+  const cpuAllocated = vdc.computeCapacity?.cpu?.allocated || 0;
   const cpuLimit = vdc.computeCapacity?.cpu?.limit || 0;
-  const memUsed = vdc.computeCapacity?.memory?.used || 0;
+  const cpuReserved = vdc.computeCapacity?.cpu?.reserved || 0;
+  const cpuUsed = vdc.computeCapacity?.cpu?.used || 0;
+  
+  const memAllocated = vdc.computeCapacity?.memory?.allocated || 0;
   const memLimit = vdc.computeCapacity?.memory?.limit || 0;
+  const memReserved = vdc.computeCapacity?.memory?.reserved || 0;
+  const memUsed = vdc.computeCapacity?.memory?.used || 0;
+  
   const ipUsed = vdc.network?.allocatedIps?.usedIpCount || 0;
   const ipTotal = vdc.network?.allocatedIps?.totalIpCount || 0;
   
-  const cpuHealth = cpuLimit > 0 && (cpuUsed / cpuLimit) > 0.9;
-  const memHealth = memLimit > 0 && (memUsed / memLimit) > 0.9;
+  const vmResources = (vdc as any).vmResources || { cpuUsed: 0, memoryUsed: 0, vmCount: 0, runningVmCount: 0 };
+  const vCpuInMhz = (vdc as any).vCpuInMhz2 || 2000;
+  
+  const cpuCapacity = cpuLimit > 0 ? cpuLimit : cpuAllocated;
+  const memCapacity = memLimit > 0 ? memLimit : memAllocated;
+  
+  const cpuHealth = cpuCapacity > 0 && (cpuUsed / cpuCapacity) > 0.9;
+  const memHealth = memCapacity > 0 && (memUsed / memCapacity) > 0.9;
   const ipHealth = ipTotal > 0 && (ipUsed / ipTotal) > 0.9;
   
   const isWarning = cpuHealth || memHealth || ipHealth;
@@ -27,18 +39,18 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
 
   const cpuData = {
     Used: cpuUsed,
-    Limit: cpuLimit,
-    Reserved: vdc.computeCapacity?.cpu?.reserved || 0,
+    Limit: cpuCapacity,
+    Reserved: cpuReserved,
     Units: vdc.computeCapacity?.cpu?.units || 'MHz',
-    Allocated: vdc.computeCapacity?.cpu?.allocated || 0
+    Allocated: cpuAllocated
   };
 
   const memData = {
     Used: memUsed,
-    Limit: memLimit,
-    Reserved: vdc.computeCapacity?.memory?.reserved || 0,
+    Limit: memCapacity,
+    Reserved: memReserved,
     Units: vdc.computeCapacity?.memory?.units || 'MB',
-    Allocated: vdc.computeCapacity?.memory?.allocated || 0
+    Allocated: memAllocated
   };
 
   const ipData = {
@@ -49,7 +61,7 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
   };
 
   const storageProfiles = vdc.storageProfiles || [];
-  const hasComputeData = cpuLimit > 0 || memLimit > 0;
+  const hasComputeData = cpuAllocated > 0 || memAllocated > 0;
   const allocationType = vdc.allocationType || vdc.allocationModel || 'N/A';
   const orgName = vdc.org?.name;
 
@@ -87,33 +99,54 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-6 flex-1">
+        {/* VM Summary Section */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Server className="h-3 w-3" /> Virtual Machines
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center">
+              <div className="text-2xl font-bold text-foreground">{vmResources.vmCount}</div>
+              <div className="text-xs text-muted-foreground">Total VMs</div>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center">
+              <div className="text-2xl font-bold text-green-500">{vmResources.runningVmCount}</div>
+              <div className="text-xs text-muted-foreground">Running</div>
+            </div>
+          </div>
+          {vCpuInMhz && (
+            <div className="text-xs text-muted-foreground text-center">
+              vCPU Speed: {(vCpuInMhz / 1000).toFixed(1)} GHz
+            </div>
+          )}
+        </div>
+
+        <Separator className="bg-border/50" />
+
         {/* Compute Section */}
-        {hasComputeData ? (
-          <div className="space-y-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Cpu className="h-3 w-3" /> Compute Resources
-            </h4>
-            <ResourceBar
-              label="CPU"
-              data={cpuData}
-              color="bg-cyan-500"
-              type="compute"
-            />
-            <ResourceBar
-              label="Memory"
-              data={memData}
-              color="bg-purple-500"
-              type="compute"
-            />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Cpu className="h-3 w-3" /> Compute Resources
-            </h4>
-            <p className="text-sm text-muted-foreground italic">Flex allocation - compute on demand</p>
-          </div>
-        )}
+        <div className="space-y-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Cpu className="h-3 w-3" /> Compute Allocation
+          </h4>
+          {hasComputeData ? (
+            <>
+              <ResourceBar
+                label="CPU"
+                data={cpuData}
+                color="bg-cyan-500"
+                type="compute"
+              />
+              <ResourceBar
+                label="Memory"
+                data={memData}
+                color="bg-purple-500"
+                type="compute"
+              />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No quota limits (Flex allocation)</p>
+          )}
+        </div>
 
         <Separator className="bg-border/50" />
 
