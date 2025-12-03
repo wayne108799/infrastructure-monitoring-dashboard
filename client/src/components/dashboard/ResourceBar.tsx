@@ -1,12 +1,34 @@
-import { CapacityWithUsage, VdcStorageProfile, IpAllocation } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
+interface ComputeData {
+  Used: number;
+  Limit: number;
+  Reserved: number;
+  Units: string;
+  Allocated: number;
+}
+
+interface StorageData {
+  id?: string;
+  name?: string;
+  limit?: number;
+  used?: number;
+  units?: string;
+}
+
+interface IpData {
+  totalIpCount: number;
+  usedIpCount: number;
+  freeIpCount: number;
+  subnets?: any[];
+}
+
 interface ResourceBarProps {
   label: string;
-  data?: CapacityWithUsage; // For Compute
-  storageData?: VdcStorageProfile; // For Storage
-  ipData?: IpAllocation; // For Network
+  data?: ComputeData;
+  storageData?: StorageData;
+  ipData?: IpData;
   color: string;
   type?: 'compute' | 'storage' | 'network';
 }
@@ -21,9 +43,9 @@ export function ResourceBar({ label, data, storageData, ipData, color, type = 'c
   let isUnlimited = false;
 
   if (type === 'storage' && storageData) {
-    used = storageData.used;
-    limit = storageData.limit;
-    unit = storageData.units;
+    used = storageData.used || 0;
+    limit = storageData.limit || 0;
+    unit = storageData.units || 'MB';
     
     const toGB = (mb: number) => (mb / 1024).toFixed(1);
     const toTB = (mb: number) => (mb / 1024 / 1024).toFixed(2);
@@ -32,15 +54,15 @@ export function ResourceBar({ label, data, storageData, ipData, color, type = 'c
     displayUsed = isTB ? toTB(used) : toGB(used);
     displayTotal = isTB ? `${toTB(limit)} TB` : `${toGB(limit)} GB`;
   } else if (type === 'network' && ipData) {
-    used = ipData.usedIpCount;
-    limit = ipData.totalIpCount;
+    used = ipData.usedIpCount || 0;
+    limit = ipData.totalIpCount || 0;
     displayUsed = used.toString();
     displayTotal = `${limit} IPs`;
-  } else if (data) { // Compute
-    used = data.Used;
-    limit = data.Limit === 0 ? data.Used * 1.5 : data.Limit;
-    reserved = data.Reserved;
-    unit = data.Units;
+  } else if (data) {
+    used = data.Used || 0;
+    limit = data.Limit === 0 ? (data.Used || 0) * 1.5 : (data.Limit || 0);
+    reserved = data.Reserved || 0;
+    unit = data.Units || 'MHz';
     isUnlimited = data.Limit === 0;
     
     const isMHz = unit === 'MHz';

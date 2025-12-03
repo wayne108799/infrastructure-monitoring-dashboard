@@ -12,52 +12,57 @@ export interface OrgVdc {
   id: string;
   name: string;
   description?: string;
-  href: string;
-  isEnabled: boolean;
-  allocationModel: string;
-  computeCapacity: {
-    cpu: {
-      units: string;
-      allocated: number;
-      limit: number;
-      reserved: number;
-      used: number;
+  href?: string;
+  isEnabled?: boolean;
+  allocationModel?: string;
+  allocationType?: string;
+  org?: {
+    name: string;
+    id: string;
+  };
+  computeCapacity?: {
+    cpu?: {
+      units?: string;
+      allocated?: number;
+      limit?: number;
+      reserved?: number;
+      used?: number;
     };
-    memory: {
-      units: string;
-      allocated: number;
-      limit: number;
-      reserved: number;
-      used: number;
+    memory?: {
+      units?: string;
+      allocated?: number;
+      limit?: number;
+      reserved?: number;
+      used?: number;
     };
   };
-  storageProfiles: Array<{
-    id: string;
-    name: string;
-    href: string;
-    limit: number;
-    used: number;
-    units: string;
-    default: boolean;
-    enabled: boolean;
+  storageProfiles?: Array<{
+    id?: string;
+    name?: string;
+    href?: string;
+    limit?: number;
+    used?: number;
+    units?: string;
+    default?: boolean;
+    enabled?: boolean;
   }>;
-  network: {
-    allocatedIps: {
-      totalIpCount: number;
-      usedIpCount: number;
-      freeIpCount: number;
-      subnets: Array<{
-        gateway: string;
-        netmask: string;
-        primaryIp: string;
-        ipRanges: Array<{
-          startAddress: string;
-          endAddress: string;
+  network?: {
+    allocatedIps?: {
+      totalIpCount?: number;
+      usedIpCount?: number;
+      freeIpCount?: number;
+      subnets?: Array<{
+        gateway?: string;
+        netmask?: string;
+        primaryIp?: string;
+        ipRanges?: Array<{
+          startAddress?: string;
+          endAddress?: string;
         }>;
       }>;
     };
   };
-  status: number;
+  status?: number;
   vmQuota?: number;
   networkQuota?: number;
   vcpuInMhz?: number;

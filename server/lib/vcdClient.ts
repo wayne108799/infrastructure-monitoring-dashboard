@@ -74,6 +74,11 @@ export class VcdClient {
   private session: VcdSession | null = null;
 
   constructor(config: VcdConfig) {
+    // Trim all config values to remove any whitespace from environment variables
+    const username = config.username.trim();
+    const password = config.password.trim();
+    const org = config.org.trim();
+    
     // Ensure URL has protocol
     let url = config.url.trim();
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -82,7 +87,7 @@ export class VcdClient {
     // Remove trailing slash
     url = url.replace(/\/$/, '');
     
-    this.config = { ...config, url };
+    this.config = { ...config, url, username, password, org };
   }
 
   /**
@@ -198,28 +203,47 @@ export class VcdClient {
     const token = await this.ensureAuthenticated();
     const url = `${this.config.url}${endpoint}`;
 
+    // Determine the correct Accept header based on endpoint type
+    const isCloudApi = endpoint.startsWith('/cloudapi/');
+    const acceptHeader = isCloudApi 
+      ? 'application/json;version=38.0'
+      : 'application/*+json;version=38.0';
+
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Accept': 'application/json',
+        'Accept': acceptHeader,
+        'Authorization': `Bearer ${token}`,
         'x-vcloud-authorization': token,
         ...options.headers,
       },
     });
 
     if (!response.ok) {
-      throw new Error(`VCD API request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`VCD API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     return response.json();
   }
 
   /**
-   * Get all Organization VDCs
+   * Helper to extract just the UUID from a URN format (e.g., "urn:vcloud:vdc:uuid" -> "uuid")
+   */
+  private extractUuid(id: string): string {
+    if (id.startsWith('urn:')) {
+      const parts = id.split(':');
+      return parts[parts.length - 1];
+    }
+    return id;
+  }
+
+  /**
+   * Get all Organization VDCs with compute capacity included
    */
   async getOrgVdcs(): Promise<any[]> {
     try {
-      // CloudAPI endpoint for querying VDCs
+      // CloudAPI endpoint for querying VDCs - use query to get computeCapacity details
       const response = await this.request<{ values: VcdOrgVdcResponse[] }>(
         `/cloudapi/1.0.0/vdcs`
       );
@@ -232,12 +256,13 @@ export class VcdClient {
   }
 
   /**
-   * Get VDC details by ID
+   * Get VDC details by ID using CloudAPI (which accepts URN format)
    */
   async getVdcDetails(vdcId: string): Promise<any> {
     try {
+      // Use CloudAPI which handles the URN format properly
       const response = await this.request<any>(
-        `/api/admin/vdc/${vdcId}`
+        `/cloudapi/1.0.0/vdcs/${vdcId}`
       );
       
       return response;
@@ -248,15 +273,16 @@ export class VcdClient {
   }
 
   /**
-   * Get storage profiles for a VDC
+   * Get storage profiles for a VDC using the query API
    */
   async getVdcStorageProfiles(vdcId: string): Promise<any[]> {
     try {
-      const response = await this.request<{ values: any[] }>(
-        `/cloudapi/1.0.0/vdcs/${vdcId}/storageProfiles`
+      // Use query API to get storage profiles associated with this VDC
+      const response = await this.request<{ record: any[] }>(
+        `/api/query?type=orgVdcStorageProfile&filter=(vdc==${vdcId})`
       );
       
-      return response.values || [];
+      return response.record || [];
     } catch (error) {
       log(`Error fetching storage profiles for ${vdcId}: ${error}`, 'vcd-client');
       return [];

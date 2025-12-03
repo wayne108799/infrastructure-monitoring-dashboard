@@ -38,16 +38,16 @@ export default function Dashboard() {
 
   const selectedSite = sites?.find(s => s.id === selectedSiteId);
 
-  // Calculate site-wide stats
+  // Calculate site-wide stats (with safe access for optional fields)
   const siteStats = (vdcs || []).reduce((acc, vdc) => ({
-    totalCpuUsed: acc.totalCpuUsed + vdc.computeCapacity.cpu.used,
-    totalCpuLimit: acc.totalCpuLimit + vdc.computeCapacity.cpu.limit,
-    totalMemUsed: acc.totalMemUsed + vdc.computeCapacity.memory.used,
-    totalMemLimit: acc.totalMemLimit + vdc.computeCapacity.memory.limit,
-    totalStorageUsed: acc.totalStorageUsed + vdc.storageProfiles.reduce((s, p) => s + p.used, 0),
-    totalStorageLimit: acc.totalStorageLimit + vdc.storageProfiles.reduce((s, p) => s + p.limit, 0),
-    totalIpsUsed: acc.totalIpsUsed + vdc.network.allocatedIps.usedIpCount,
-    totalIpsLimit: acc.totalIpsLimit + vdc.network.allocatedIps.totalIpCount,
+    totalCpuUsed: acc.totalCpuUsed + (vdc.computeCapacity?.cpu?.used || 0),
+    totalCpuLimit: acc.totalCpuLimit + (vdc.computeCapacity?.cpu?.limit || 0),
+    totalMemUsed: acc.totalMemUsed + (vdc.computeCapacity?.memory?.used || 0),
+    totalMemLimit: acc.totalMemLimit + (vdc.computeCapacity?.memory?.limit || 0),
+    totalStorageUsed: acc.totalStorageUsed + (vdc.storageProfiles || []).reduce((s: number, p: any) => s + (p.used || 0), 0),
+    totalStorageLimit: acc.totalStorageLimit + (vdc.storageProfiles || []).reduce((s: number, p: any) => s + (p.limit || 0), 0),
+    totalIpsUsed: acc.totalIpsUsed + (vdc.network?.allocatedIps?.usedIpCount || 0),
+    totalIpsLimit: acc.totalIpsLimit + (vdc.network?.allocatedIps?.totalIpCount || 0),
     vdcCount: acc.vdcCount + 1
   }), {
     totalCpuUsed: 0, totalCpuLimit: 0,
