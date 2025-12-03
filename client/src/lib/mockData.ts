@@ -8,6 +8,22 @@ export interface Reference {
   type?: string;
 }
 
+// IP Address Allocation (VCD 10.6 Edge Gateway Uplink / OrgVDC Network)
+export interface IpAllocation {
+  totalIpCount: number;
+  usedIpCount: number;
+  freeIpCount: number; // Derived or explicit
+  subnets: {
+    gateway: string;
+    netmask: string;
+    primaryIp: string;
+    ipRanges: {
+      startAddress: string;
+      endAddress: string;
+    }[];
+  }[];
+}
+
 // Capacity & Usage Types
 export interface CapacityWithUsage {
   Units: string; // 'MHz', 'MB'
@@ -57,6 +73,9 @@ export interface OrgVdc {
   allocationModel: 'AllocationVApp' | 'AllocationPool' | 'ReservationPool' | 'Flex' | 'PayAsYouGo';
   computeCapacity: ComputeCapacity;
   storageProfiles: VdcStorageProfile[];
+  network: {
+    allocatedIps: IpAllocation;
+  };
   vmQuota: number; // -1 for unlimited
   networkQuota: number;
   resourceGuaranteedMemory?: number;
@@ -134,7 +153,24 @@ export const mockSites: Site[] = [
             default: false,
             enabled: true
           }
-        ]
+        ],
+        network: {
+          allocatedIps: {
+            totalIpCount: 32,
+            usedIpCount: 28,
+            freeIpCount: 4,
+            subnets: [
+              {
+                gateway: '203.0.113.1',
+                netmask: '255.255.255.224',
+                primaryIp: '203.0.113.2',
+                ipRanges: [
+                  { startAddress: '203.0.113.3', endAddress: '203.0.113.34' }
+                ]
+              }
+            ]
+          }
+        }
       },
       {
         id: 'urn:vcloud:vdc:cc049530-92d7-523f-c40d-31727d73402e',
@@ -174,7 +210,24 @@ export const mockSites: Site[] = [
             default: true,
             enabled: true
           }
-        ]
+        ],
+        network: {
+          allocatedIps: {
+            totalIpCount: 16,
+            usedIpCount: 4,
+            freeIpCount: 12,
+            subnets: [
+              {
+                gateway: '198.51.100.1',
+                netmask: '255.255.255.240',
+                primaryIp: '198.51.100.2',
+                ipRanges: [
+                  { startAddress: '198.51.100.3', endAddress: '198.51.100.14' }
+                ]
+              }
+            ]
+          }
+        }
       }
     ]
   },
@@ -233,7 +286,24 @@ export const mockSites: Site[] = [
             default: true,
             enabled: true
           }
-        ]
+        ],
+        network: {
+          allocatedIps: {
+            totalIpCount: 8,
+            usedIpCount: 7,
+            freeIpCount: 1,
+            subnets: [
+              {
+                gateway: '203.0.113.129',
+                netmask: '255.255.255.248',
+                primaryIp: '203.0.113.130',
+                ipRanges: [
+                  { startAddress: '203.0.113.131', endAddress: '203.0.113.134' }
+                ]
+              }
+            ]
+          }
+        }
       }
     ]
   }

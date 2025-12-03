@@ -4,15 +4,16 @@ import { mockSites } from '@/lib/mockData';
 import { VDCDetailCard } from '@/components/dashboard/VDCDetailCard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Activity, Server, Database, AlertTriangle, CheckCircle2, Globe } from 'lucide-react';
+import { Activity, Server, Database, Globe, Network } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
   const [selectedSiteId, setSelectedSiteId] = useState<string>(mockSites[0].id);
   
   const selectedSite = mockSites.find(s => s.id === selectedSiteId) || mockSites[0];
 
-  // Aggregate stats for the site (updated for new schema)
+  // Aggregate stats for the site
   const siteStats = selectedSite.orgVdcs.reduce((acc, vdc) => ({
     totalCpuUsed: acc.totalCpuUsed + vdc.computeCapacity.Cpu.Used,
     totalCpuLimit: acc.totalCpuLimit + vdc.computeCapacity.Cpu.Limit,
@@ -20,11 +21,14 @@ export default function Dashboard() {
     totalMemLimit: acc.totalMemLimit + vdc.computeCapacity.Memory.Limit,
     totalStorageUsed: acc.totalStorageUsed + vdc.storageProfiles.reduce((s, p) => s + p.used, 0),
     totalStorageLimit: acc.totalStorageLimit + vdc.storageProfiles.reduce((s, p) => s + p.limit, 0),
+    totalIpsUsed: acc.totalIpsUsed + vdc.network.allocatedIps.usedIpCount,
+    totalIpsLimit: acc.totalIpsLimit + vdc.network.allocatedIps.totalIpCount,
     vdcCount: acc.vdcCount + 1
   }), { 
     totalCpuUsed: 0, totalCpuLimit: 0, 
     totalMemUsed: 0, totalMemLimit: 0,
     totalStorageUsed: 0, totalStorageLimit: 0,
+    totalIpsUsed: 0, totalIpsLimit: 0,
     vdcCount: 0
   });
 
@@ -69,21 +73,22 @@ export default function Dashboard() {
         <StatCard 
           title="Org VDCs" 
           value={siteStats.vdcCount.toString()} 
-          icon={Globe} 
+          icon={Server} 
           trend="Active" 
           trendUp={true}
         />
         <StatCard 
-          title="Total CPU Alloc" 
+          title="CPU Allocation" 
           value={`${Math.round((siteStats.totalCpuUsed / (siteStats.totalCpuLimit || 1)) * 100)}%`} 
           icon={Activity} 
           subtext={`${toGHz(siteStats.totalCpuUsed)} / ${toGHz(siteStats.totalCpuLimit)} GHz`}
         />
         <StatCard 
-          title="Total Memory Alloc" 
-          value={`${Math.round((siteStats.totalMemUsed / (siteStats.totalMemLimit || 1)) * 100)}%`} 
-          icon={Database} 
-          subtext={`${toGB(siteStats.totalMemUsed)} / ${toGB(siteStats.totalMemLimit)} GB`}
+          title="Public IP Usage" 
+          value={`${siteStats.totalIpsUsed} / ${siteStats.totalIpsLimit}`}
+          icon={Globe} 
+          subtext={`${siteStats.totalIpsLimit - siteStats.totalIpsUsed} Available`}
+          warning={siteStats.totalIpsUsed / siteStats.totalIpsLimit > 0.9}
         />
         <Card className="bg-card border-border relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
@@ -101,7 +106,7 @@ export default function Dashboard() {
       {/* VDC Grid */}
       <div>
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Server className="h-5 w-5 text-primary" />
+          <Network className="h-5 w-5 text-primary" />
           Organization VDCs
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -123,17 +128,17 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, trend, trendUp, subtext }: any) {
+function StatCard({ title, value, icon: Icon, trend, trendUp, subtext, warning }: any) {
   return (
-    <Card className="bg-card border-border">
+    <Card className={cn("bg-card border-border", warning && "border-amber-500/50 bg-amber-500/5")}>
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-y-0 pb-2">
           <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <Icon className={cn("h-4 w-4", warning ? "text-amber-500" : "text-muted-foreground")} />
         </div>
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-2xl font-bold font-mono">{value}</div>
+            <div className={cn("text-2xl font-bold font-mono", warning && "text-amber-500")}>{value}</div>
             {subtext && <p className="text-xs text-muted-foreground mt-1">{subtext}</p>}
           </div>
           {trend && (

@@ -4,19 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { HardDrive, Cpu, MemoryStick, Database } from 'lucide-react';
+import { Cpu, Database, Globe } from 'lucide-react';
 
 interface VDCDetailCardProps {
   vdc: OrgVdc;
 }
 
 export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
-  // Determine health based on usage vs limit (if limit exists)
+  // Determine health based on usage vs limit
   const cpuHealth = vdc.computeCapacity.Cpu.Limit > 0 && (vdc.computeCapacity.Cpu.Used / vdc.computeCapacity.Cpu.Limit) > 0.9;
   const memHealth = vdc.computeCapacity.Memory.Limit > 0 && (vdc.computeCapacity.Memory.Used / vdc.computeCapacity.Memory.Limit) > 0.9;
+  const ipHealth = (vdc.network.allocatedIps.usedIpCount / vdc.network.allocatedIps.totalIpCount) > 0.9;
   
-  const isWarning = cpuHealth || memHealth;
-  const isCritical = vdc.status !== 1; // 1 is Ready
+  const isWarning = cpuHealth || memHealth || ipHealth;
+  const isCritical = vdc.status !== 1; 
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 transition-colors duration-300 h-full flex flex-col">
@@ -56,17 +57,19 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
             label="CPU" 
             data={vdc.computeCapacity.Cpu} 
             color="bg-cyan-500" 
+            type="compute"
           />
           <ResourceBar 
             label="Memory" 
             data={vdc.computeCapacity.Memory} 
             color="bg-purple-500" 
+            type="compute"
           />
         </div>
 
         <Separator className="bg-border/50" />
 
-        {/* Storage Section - Iterate Profiles */}
+        {/* Storage Section */}
         <div className="space-y-4">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <Database className="h-3 w-3" /> Storage Profiles
@@ -78,11 +81,27 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
                 label={profile.name}
                 storageData={profile}
                 color="bg-emerald-500"
-                isStorage={true}
+                type="storage"
               />
             ))}
           </div>
         </div>
+
+        <Separator className="bg-border/50" />
+
+        {/* Network Section */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Globe className="h-3 w-3" /> Network Allocations
+          </h4>
+          <ResourceBar 
+            label="Public IPs" 
+            ipData={vdc.network.allocatedIps}
+            color="bg-orange-500"
+            type="network"
+          />
+        </div>
+
       </CardContent>
     </Card>
   );
