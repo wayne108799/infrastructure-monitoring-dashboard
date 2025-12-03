@@ -720,19 +720,9 @@ export class VcdClient {
           // Get storage profiles from this vCenter - this returns actual datastore capacity
           const response = await this.request<any>(`/api/admin/extension/vimServer/${vimId}/storageProfiles`);
           
-          // Log raw response structure for debugging
-          log(`vCenter ${vim.name} raw response keys: ${Object.keys(response || {}).join(', ')}`, 'vcd-client');
-          
           // VCD API may return profiles in different formats - check for vmwStorageProfile (lowercase)
           const profiles = response.vmwStorageProfile || response.vMWStorageProfile || 
                           response.VMWStorageProfile || response.storageProfile || response.record || [];
-          
-          log(`vCenter ${vim.name}: Found ${profiles.length} storage profile(s)`, 'vcd-client');
-          
-          // If we got profiles, log the first one's structure for debugging
-          if (profiles.length > 0) {
-            log(`First profile keys: ${Object.keys(profiles[0] || {}).join(', ')}`, 'vcd-client');
-          }
           
           for (const profile of profiles) {
             const name = profile.name || profile.Name || 'Unknown';
@@ -747,8 +737,6 @@ export class VcdClient {
             const totalMb = Math.round(rawTotal / 1024);
             const freeMb = Math.round(rawFree / 1024);
             const usedMb = totalMb - freeMb;
-            
-            log(`vCenter Storage Profile "${name}": rawTotal=${rawTotal}, totalMb=${totalMb}, freeMb=${freeMb}, usedMb=${usedMb}`, 'vcd-client');
             
             // Aggregate by profile name (in case same profile exists on multiple vCenters)
             if (!storageMap[name]) {
