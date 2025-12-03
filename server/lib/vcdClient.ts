@@ -281,11 +281,10 @@ export class VcdClient {
    */
   async getVdcVmResources(vdcId: string): Promise<{ cpuUsed: number; memoryUsed: number; vmCount: number; runningVmCount: number }> {
     try {
-      const uuid = this.extractUuid(vdcId);
-      
-      // Query all VMs in this VDC
+      // Query all VMs in this VDC using the URN format for filter
+      const encodedFilter = encodeURIComponent(`vdc==${vdcId}`);
       const response = await this.request<{ record?: any[] }>(
-        `/api/query?type=vm&filter=(vdc==${uuid})&fields=name,status,numberOfCpus,memoryMB,isDeployed`
+        `/api/query?type=vm&format=records&filter=${encodedFilter}`
       );
       
       const vms = response.record || [];
@@ -294,9 +293,10 @@ export class VcdClient {
       let runningVmCount = 0;
       
       for (const vm of vms) {
-        // Status 4 = POWERED_ON
-        if (vm.status === 4 || vm.isDeployed) {
-          cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000); // Assume 2GHz per vCPU if not specified
+        // Status 4 = POWERED_ON, or check status string
+        const isPoweredOn = vm.status === 4 || vm.status === 'POWERED_ON' || vm.isDeployed === true;
+        if (isPoweredOn) {
+          cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000);
           memoryUsed += vm.memoryMB || 0;
           runningVmCount++;
         }
@@ -315,29 +315,57 @@ export class VcdClient {
   }
 
   /**
-   * Get storage profiles for a VDC using the query API
+   * Get storage profiles for a VDC by fetching each profile directly
    */
-  async getVdcStorageProfiles(vdcId: string): Promise<any[]> {
+  async getVdcStorageProfiles(vdcDetails: any): Promise<any[]> {
     try {
-      const uuid = this.extractUuid(vdcId);
+      // Use vdcStorageProfiles from VDC details to get profile references
+      const profileRefs = vdcDetails.vdcStorageProfiles?.vdcStorageProfile || [];
       
-      // Use query API to get storage profiles associated with this VDC
-      const response = await this.request<{ record?: any[] }>(
-        `/api/query?type=orgVdcStorageProfile&filter=(vdc==${uuid})&fields=name,storageLimitMB,storageUsedMB,isEnabled,isDefaultStorageProfile`
+      if (profileRefs.length === 0) {
+        log(`No storage profile references found in VDC details`, 'vcd-client');
+        return [];
+      }
+
+      // Fetch each storage profile to get usage data
+      const profiles = await Promise.all(
+        profileRefs.map(async (ref: any) => {
+          try {
+            if (!ref.href) return null;
+            
+            // Extract the profile ID from href and fetch details
+            const profileId = ref.href.split('/').pop();
+            const profile = await this.request<any>(`/api/vdcStorageProfile/${profileId}`);
+            
+            return {
+              id: profileId,
+              name: profile.name || ref.name || 'Unknown',
+              limit: profile.limit || 0,
+              used: profile.storageUsedMB || 0,
+              units: 'MB',
+              default: profile.default || false,
+              enabled: profile.enabled !== false
+            };
+          } catch (e) {
+            log(`Error fetching storage profile: ${e}`, 'vcd-client');
+            return {
+              id: ref.id || ref.name,
+              name: ref.name || 'Unknown',
+              limit: 0,
+              used: 0,
+              units: 'MB',
+              default: false,
+              enabled: true
+            };
+          }
+        })
       );
       
-      const records = response.record || [];
-      return records.map(r => ({
-        id: r.href?.split('/').pop() || r.name,
-        name: r.name,
-        limit: r.storageLimitMB || 0,
-        used: r.storageUsedMB || 0,
-        units: 'MB',
-        default: r.isDefaultStorageProfile || false,
-        enabled: r.isEnabled !== false
-      }));
+      const validProfiles = profiles.filter(p => p !== null);
+      log(`Storage profiles: ${validProfiles.length} found`, 'vcd-client');
+      return validProfiles;
     } catch (error) {
-      log(`Error fetching storage profiles for ${vdcId}: ${error}`, 'vcd-client');
+      log(`Error fetching storage profiles: ${error}`, 'vcd-client');
       return [];
     }
   }
@@ -424,15 +452,18 @@ export class VcdClient {
    */
   async getVdcComprehensive(vdcId: string): Promise<any> {
     try {
-      const [details, storageProfiles, edgeGateways, vmResources] = await Promise.all([
+      // First get VDC details, then use it to fetch related data
+      const [details, edgeGateways, vmResources] = await Promise.all([
         this.getVdcDetails(vdcId),
-        this.getVdcStorageProfiles(vdcId),
         this.getEdgeGateways(vdcId),
         this.getVdcVmResources(vdcId)
       ]);
 
+      // Fetch storage profiles using the VDC details
+      const storageProfiles = await this.getVdcStorageProfiles(details);
+
       // Get IP allocations from first edge gateway
-      let ipAllocations = { totalIpCount: 0, usedIpCount: 0, freeIpCount: 0, subnets: [] };
+      let ipAllocations: { totalIpCount: number; usedIpCount: number; freeIpCount: number; subnets: any[] } = { totalIpCount: 0, usedIpCount: 0, freeIpCount: 0, subnets: [] };
       if (edgeGateways.length > 0) {
         ipAllocations = await this.getIpAllocations(edgeGateways[0].id);
       }

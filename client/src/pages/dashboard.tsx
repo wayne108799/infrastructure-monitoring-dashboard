@@ -4,10 +4,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { VDCDetailCard } from '@/components/dashboard/VDCDetailCard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Activity, Server, Database, Globe, Network, AlertCircle } from 'lucide-react';
+import { Activity, Server, Database, Globe, Network, AlertCircle, Cpu, HardDrive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { fetchSites, fetchSiteVdcs, type Site, type OrgVdc } from '@/lib/api';
+import { fetchSites, fetchSiteVdcs, fetchSiteSummary, type Site, type OrgVdc, type SiteSummary } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function Dashboard() {
@@ -36,26 +36,16 @@ export default function Dashboard() {
     refetchInterval: 60 * 1000, // Auto-refresh every minute
   });
 
-  const selectedSite = sites?.find(s => s.id === selectedSiteId);
-
-  // Calculate site-wide stats (with safe access for optional fields)
-  const siteStats = (vdcs || []).reduce((acc, vdc) => ({
-    totalCpuUsed: acc.totalCpuUsed + (vdc.computeCapacity?.cpu?.used || 0),
-    totalCpuLimit: acc.totalCpuLimit + (vdc.computeCapacity?.cpu?.limit || 0),
-    totalMemUsed: acc.totalMemUsed + (vdc.computeCapacity?.memory?.used || 0),
-    totalMemLimit: acc.totalMemLimit + (vdc.computeCapacity?.memory?.limit || 0),
-    totalStorageUsed: acc.totalStorageUsed + (vdc.storageProfiles || []).reduce((s: number, p: any) => s + (p.used || 0), 0),
-    totalStorageLimit: acc.totalStorageLimit + (vdc.storageProfiles || []).reduce((s: number, p: any) => s + (p.limit || 0), 0),
-    totalIpsUsed: acc.totalIpsUsed + (vdc.network?.allocatedIps?.usedIpCount || 0),
-    totalIpsLimit: acc.totalIpsLimit + (vdc.network?.allocatedIps?.totalIpCount || 0),
-    vdcCount: acc.vdcCount + 1
-  }), {
-    totalCpuUsed: 0, totalCpuLimit: 0,
-    totalMemUsed: 0, totalMemLimit: 0,
-    totalStorageUsed: 0, totalStorageLimit: 0,
-    totalIpsUsed: 0, totalIpsLimit: 0,
-    vdcCount: 0
+  // Fetch site summary for totals
+  const { data: siteSummary } = useQuery({
+    queryKey: ['siteSummary', selectedSiteId],
+    queryFn: () => fetchSiteSummary(selectedSiteId),
+    enabled: !!selectedSiteId,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000,
   });
+
+  const selectedSite = sites?.find(s => s.id === selectedSiteId);
 
   // Helpers for display
   const toGHz = (mhz: number) => (mhz / 1000).toFixed(0);
@@ -164,38 +154,39 @@ export default function Dashboard() {
       {!vdcsLoading && vdcs && (
         <>
           {/* High Level Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <StatCard
               title="Org VDCs"
-              value={siteStats.vdcCount.toString()}
+              value={siteSummary?.totalVdcs?.toString() || vdcs.length.toString()}
               icon={Server}
               trend="Active"
               trendUp={true}
             />
             <StatCard
-              title="CPU Allocation"
-              value={`${Math.round((siteStats.totalCpuUsed / (siteStats.totalCpuLimit || 1)) * 100)}%`}
+              title="Virtual Machines"
+              value={`${siteSummary?.runningVms || 0} / ${siteSummary?.totalVms || 0}`}
               icon={Activity}
-              subtext={`${toGHz(siteStats.totalCpuUsed)} / ${toGHz(siteStats.totalCpuLimit)} GHz`}
+              subtext={`${siteSummary?.runningVms || 0} Running`}
             />
             <StatCard
-              title="Public IP Usage"
-              value={`${siteStats.totalIpsUsed} / ${siteStats.totalIpsLimit}`}
-              icon={Globe}
-              subtext={`${siteStats.totalIpsLimit - siteStats.totalIpsUsed} Available`}
-              warning={siteStats.totalIpsUsed / siteStats.totalIpsLimit > 0.9}
+              title="CPU Allocated"
+              value={`${toGHz(siteSummary?.cpu?.allocated || 0)} GHz`}
+              icon={Cpu}
+              subtext={`${toGHz(siteSummary?.cpu?.reserved || 0)} GHz Reserved`}
             />
-            <Card className="bg-card border-border relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">Storage Used</h3>
-                  <Database className="h-4 w-4 text-emerald-500" />
-                </div>
-                <div className="text-2xl font-bold font-mono">{toTB(siteStats.totalStorageUsed)} TB</div>
-                <p className="text-xs text-muted-foreground mt-1">of {toTB(siteStats.totalStorageLimit)} TB Total Capacity</p>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Memory Allocated"
+              value={`${toGB(siteSummary?.memory?.allocated || 0)} GB`}
+              icon={HardDrive}
+              subtext={`${toGB(siteSummary?.memory?.reserved || 0)} GB Reserved`}
+            />
+            <StatCard
+              title="Public IPs"
+              value={`${siteSummary?.network?.usedIps || 0} / ${siteSummary?.network?.totalIps || 0}`}
+              icon={Globe}
+              subtext={`${siteSummary?.network?.freeIps || 0} Available`}
+              warning={siteSummary && siteSummary.network?.totalIps > 0 && (siteSummary.network?.usedIps / siteSummary.network?.totalIps) > 0.9}
+            />
           </div>
 
           {/* VDC Grid */}

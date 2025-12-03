@@ -111,3 +111,42 @@ export async function testSiteConnection(siteId: string): Promise<{ success: boo
   });
   return response.json();
 }
+
+export interface SiteSummary {
+  totalVdcs: number;
+  totalVms: number;
+  runningVms: number;
+  cpu: {
+    allocated: number;
+    used: number;
+    reserved: number;
+    units: string;
+  };
+  memory: {
+    allocated: number;
+    used: number;
+    reserved: number;
+    units: string;
+  };
+  storage: {
+    limit: number;
+    used: number;
+    units: string;
+  };
+  network: {
+    totalIps: number;
+    usedIps: number;
+    freeIps: number;
+  };
+}
+
+/**
+ * Fetch aggregated summary for a VCD site
+ */
+export async function fetchSiteSummary(siteId: string): Promise<SiteSummary> {
+  const response = await fetch(`/api/sites/${siteId}/summary`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch summary for site ${siteId}`);
+  }
+  return response.json();
+}

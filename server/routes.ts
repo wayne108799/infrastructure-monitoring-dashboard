@@ -149,5 +149,100 @@ export async function registerRoutes(
     }
   });
 
+  /**
+   * GET /api/sites/:siteId/summary
+   * Get aggregated totals for a VCD site
+   */
+  app.get('/api/sites/:siteId/summary', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = vcdClients.get(siteId);
+
+      if (!client) {
+        return res.status(404).json({ error: `VCD site not found: ${siteId}` });
+      }
+
+      const vdcs = await client.getOrgVdcs();
+      
+      // Fetch comprehensive data for each VDC (in parallel)
+      const comprehensiveVdcs = await Promise.all(
+        vdcs.map(async (vdc) => {
+          try {
+            return await client.getVdcComprehensive(vdc.id);
+          } catch (error: any) {
+            return vdc;
+          }
+        })
+      );
+
+      // Aggregate totals
+      const summary = {
+        totalVdcs: comprehensiveVdcs.length,
+        totalVms: 0,
+        runningVms: 0,
+        cpu: {
+          allocated: 0,
+          used: 0,
+          reserved: 0,
+          units: 'MHz'
+        },
+        memory: {
+          allocated: 0,
+          used: 0,
+          reserved: 0,
+          units: 'MB'
+        },
+        storage: {
+          limit: 0,
+          used: 0,
+          units: 'MB'
+        },
+        network: {
+          totalIps: 0,
+          usedIps: 0,
+          freeIps: 0
+        }
+      };
+
+      for (const vdc of comprehensiveVdcs) {
+        // Aggregate VM counts
+        if (vdc.vmResources) {
+          summary.totalVms += vdc.vmResources.vmCount || 0;
+          summary.runningVms += vdc.vmResources.runningVmCount || 0;
+        }
+        
+        // Aggregate compute capacity
+        if (vdc.computeCapacity) {
+          summary.cpu.allocated += vdc.computeCapacity.cpu?.allocated || 0;
+          summary.cpu.used += vdc.computeCapacity.cpu?.used || 0;
+          summary.cpu.reserved += vdc.computeCapacity.cpu?.reserved || 0;
+          summary.memory.allocated += vdc.computeCapacity.memory?.allocated || 0;
+          summary.memory.used += vdc.computeCapacity.memory?.used || 0;
+          summary.memory.reserved += vdc.computeCapacity.memory?.reserved || 0;
+        }
+        
+        // Aggregate storage
+        if (vdc.storageProfiles && Array.isArray(vdc.storageProfiles)) {
+          for (const profile of vdc.storageProfiles) {
+            summary.storage.limit += profile.limit || 0;
+            summary.storage.used += profile.used || 0;
+          }
+        }
+        
+        // Aggregate network IPs
+        if (vdc.network?.allocatedIps) {
+          summary.network.totalIps += vdc.network.allocatedIps.totalIpCount || 0;
+          summary.network.usedIps += vdc.network.allocatedIps.usedIpCount || 0;
+          summary.network.freeIps += vdc.network.allocatedIps.freeIpCount || 0;
+        }
+      }
+
+      res.json(summary);
+    } catch (error: any) {
+      log(`Error fetching summary for site ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
