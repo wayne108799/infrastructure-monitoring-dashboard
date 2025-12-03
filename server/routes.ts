@@ -72,6 +72,7 @@ export async function registerRoutes(
    * Get aggregated summary for a site (works across all platforms)
    */
   app.get('/api/sites/:siteId/summary', async (req, res) => {
+    log(`Received summary request for site: ${req.params.siteId}`, 'routes');
     try {
       const { siteId } = req.params;
       const client = platformRegistry.getClientBySiteId(siteId);

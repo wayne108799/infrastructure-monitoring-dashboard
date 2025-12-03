@@ -49,8 +49,10 @@ export default function Dashboard() {
     platformFilter === 'all' || site.platformType === platformFilter
   ) || [];
 
+  const siteIds = filteredSites.map(s => s.id).join(',');
+  
   const { data: allSiteSummaries, isLoading: summariesLoading } = useQuery({
-    queryKey: ['allSiteSummaries', filteredSites?.map(s => s.id)],
+    queryKey: ['allSiteSummaries', siteIds],
     queryFn: async () => {
       if (!filteredSites || filteredSites.length === 0) return [];
       const summaries = await Promise.all(
@@ -59,6 +61,7 @@ export default function Dashboard() {
             const summary = await fetchSiteSummary(site.id);
             return { site, summary };
           } catch (e) {
+            console.log(`Failed to fetch summary for ${site.id}:`, e);
             return { site, summary: null };
           }
         })
@@ -68,6 +71,7 @@ export default function Dashboard() {
     enabled: filteredSites.length > 0,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 60 * 1000,
+    retry: false,
   });
 
   const toGHz = (mhz: number) => Math.round(mhz / 1000);
