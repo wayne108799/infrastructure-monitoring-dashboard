@@ -153,10 +153,10 @@ export default function Dashboard() {
       {/* VDC Data Display */}
       {!vdcsLoading && vdcs && (
         <>
-          {/* High Level Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          {/* Summary Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard
-              title="Org VDCs"
+              title="Organization VDCs"
               value={siteSummary?.totalVdcs?.toString() || vdcs.length.toString()}
               icon={Server}
               trend="Active"
@@ -164,30 +164,85 @@ export default function Dashboard() {
             />
             <StatCard
               title="Virtual Machines"
-              value={`${siteSummary?.runningVms || 0} / ${siteSummary?.totalVms || 0}`}
+              value={siteSummary?.totalVms?.toString() || '0'}
               icon={Activity}
-              subtext={`${siteSummary?.runningVms || 0} Running`}
-            />
-            <StatCard
-              title="CPU Allocated"
-              value={`${toGHz(siteSummary?.cpu?.allocated || 0)} GHz`}
-              icon={Cpu}
-              subtext={`${toGHz(siteSummary?.cpu?.reserved || 0)} GHz Reserved`}
-            />
-            <StatCard
-              title="Memory Allocated"
-              value={`${toGB(siteSummary?.memory?.allocated || 0)} GB`}
-              icon={HardDrive}
-              subtext={`${toGB(siteSummary?.memory?.reserved || 0)} GB Reserved`}
+              subtext={`${siteSummary?.runningVms || 0} Running / ${(siteSummary?.totalVms || 0) - (siteSummary?.runningVms || 0)} Stopped`}
             />
             <StatCard
               title="Public IPs"
-              value={`${siteSummary?.network?.usedIps || 0} / ${siteSummary?.network?.totalIps || 0}`}
+              value={`${siteSummary?.network?.totalIps || 0}`}
               icon={Globe}
-              subtext={`${siteSummary?.network?.freeIps || 0} Available`}
+              subtext={`${siteSummary?.network?.usedIps || 0} Used / ${siteSummary?.network?.freeIps || 0} Available`}
               warning={siteSummary && siteSummary.network?.totalIps > 0 && (siteSummary.network?.usedIps / siteSummary.network?.totalIps) > 0.9}
             />
+            <StatCard
+              title="Storage"
+              value={`${toTB(siteSummary?.storage?.used || 0)} TB`}
+              icon={Database}
+              subtext={`Used of ${toTB(siteSummary?.storage?.limit || 0)} TB Limit`}
+            />
           </div>
+
+          {/* Detailed Resource Summary Table */}
+          <Card className="mb-8 border-border/50">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Cpu className="h-5 w-5 text-primary" />
+                Resource Summary
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50">
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Resource</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Allocated</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Reserved</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Used</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Available</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-border/30 hover:bg-muted/30">
+                      <td className="py-3 px-4 font-medium flex items-center gap-2">
+                        <Cpu className="h-4 w-4 text-cyan-500" /> CPU
+                      </td>
+                      <td className="text-right py-3 px-4 font-mono">{toGHz(siteSummary?.cpu?.allocated || 0)} GHz</td>
+                      <td className="text-right py-3 px-4 font-mono text-amber-500">{toGHz(siteSummary?.cpu?.reserved || 0)} GHz</td>
+                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toGHz(siteSummary?.cpu?.used || 0)} GHz</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGHz((siteSummary?.cpu?.allocated || 0) - (siteSummary?.cpu?.used || 0))} GHz</td>
+                    </tr>
+                    <tr className="border-b border-border/30 hover:bg-muted/30">
+                      <td className="py-3 px-4 font-medium flex items-center gap-2">
+                        <HardDrive className="h-4 w-4 text-purple-500" /> Memory
+                      </td>
+                      <td className="text-right py-3 px-4 font-mono">{toGB(siteSummary?.memory?.allocated || 0)} GB</td>
+                      <td className="text-right py-3 px-4 font-mono text-amber-500">{toGB(siteSummary?.memory?.reserved || 0)} GB</td>
+                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toGB(siteSummary?.memory?.used || 0)} GB</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toGB((siteSummary?.memory?.allocated || 0) - (siteSummary?.memory?.used || 0))} GB</td>
+                    </tr>
+                    <tr className="border-b border-border/30 hover:bg-muted/30">
+                      <td className="py-3 px-4 font-medium flex items-center gap-2">
+                        <Database className="h-4 w-4 text-emerald-500" /> Storage
+                      </td>
+                      <td className="text-right py-3 px-4 font-mono">{toTB(siteSummary?.storage?.limit || 0)} TB</td>
+                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
+                      <td className="text-right py-3 px-4 font-mono text-blue-500">{toTB(siteSummary?.storage?.used || 0)} TB</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{toTB((siteSummary?.storage?.limit || 0) - (siteSummary?.storage?.used || 0))} TB</td>
+                    </tr>
+                    <tr className="hover:bg-muted/30">
+                      <td className="py-3 px-4 font-medium flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-orange-500" /> Public IPs
+                      </td>
+                      <td className="text-right py-3 px-4 font-mono">{siteSummary?.network?.totalIps || 0}</td>
+                      <td className="text-right py-3 px-4 font-mono text-muted-foreground">-</td>
+                      <td className="text-right py-3 px-4 font-mono text-blue-500">{siteSummary?.network?.usedIps || 0}</td>
+                      <td className="text-right py-3 px-4 font-mono text-green-500">{siteSummary?.network?.freeIps || 0}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* VDC Grid */}
           <div>
