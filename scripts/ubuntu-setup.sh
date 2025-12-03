@@ -1,5 +1,6 @@
 #!/bin/bash
 # Infrastructure Monitoring Dashboard - Ubuntu Quick Setup Script
+# Compatible with Ubuntu 22.04 LTS and Ubuntu 24.04 LTS
 # Run as root or with sudo
 
 set -e
@@ -12,6 +13,19 @@ echo "=========================================="
 if [ "$EUID" -ne 0 ]; then
     echo "Please run as root or with sudo"
     exit 1
+fi
+
+# Check Ubuntu version
+. /etc/os-release
+echo "Detected: $PRETTY_NAME"
+
+if [[ "$VERSION_ID" != "22.04" && "$VERSION_ID" != "24.04" ]]; then
+    echo "Warning: This script is tested on Ubuntu 22.04 and 24.04 LTS"
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
 fi
 
 # Get the actual user (not root)

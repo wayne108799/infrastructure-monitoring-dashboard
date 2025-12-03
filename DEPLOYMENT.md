@@ -4,9 +4,11 @@ This guide covers deploying the Multi-Platform Infrastructure Monitoring Dashboa
 
 ## Prerequisites
 
-- Ubuntu 22.04 LTS or newer
+- **Ubuntu 22.04 LTS** or **Ubuntu 24.04 LTS** (both fully supported)
 - Root or sudo access
 - Network access to your VCD, CloudStack, and/or Proxmox systems
+
+> **Note:** Ubuntu 24.04 LTS includes PostgreSQL 16 by default and is fully compatible with all components.
 
 ---
 
