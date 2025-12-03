@@ -720,6 +720,7 @@ export class VcdClient {
     cpu: { capacity: number; allocated: number; reserved: number; used: number; available: number; units: string };
     memory: { capacity: number; allocated: number; reserved: number; used: number; available: number; units: string };
     storage: { capacity: number; allocated: number; used: number; available: number; units: string };
+    storageTiers: Array<{ name: string; capacity: number; used: number }>;
   }> {
     try {
       const pvdcs = await this.getProviderVdcs();
@@ -727,6 +728,7 @@ export class VcdClient {
       let cpuCapacity = 0, cpuAllocated = 0, cpuReserved = 0, cpuUsed = 0;
       let memoryCapacity = 0, memoryAllocated = 0, memoryReserved = 0, memoryUsed = 0;
       let storageCapacity = 0, storageAllocated = 0, storageUsed = 0;
+      const storageTierMap: Record<string, { capacity: number; used: number }> = {};
       
       for (const pvdc of pvdcs) {
         // CPU capacity from computeCapacity
@@ -767,10 +769,25 @@ export class VcdClient {
             storageCapacity += profile.capacity;
             storageUsed += profile.used;
             
+            // Aggregate by tier name
+            const tierName = profile.name;
+            if (!storageTierMap[tierName]) {
+              storageTierMap[tierName] = { capacity: 0, used: 0 };
+            }
+            storageTierMap[tierName].capacity += profile.capacity;
+            storageTierMap[tierName].used += profile.used;
+            
             log(`Provider VDC Storage Profile "${profile.name}": capacity=${profile.capacity}MB, used=${profile.used}MB`, 'vcd-client');
           }
         }
       }
+      
+      // Convert storage tier map to array
+      const storageTiers = Object.entries(storageTierMap).map(([name, data]) => ({
+        name,
+        capacity: data.capacity,
+        used: data.used
+      }));
       
       log(`Provider VDC Total Storage: capacity=${storageCapacity}MB, used=${storageUsed}MB`, 'vcd-client');
       
@@ -797,7 +814,8 @@ export class VcdClient {
           used: storageUsed,
           available: storageCapacity - storageAllocated,
           units: 'MB'
-        }
+        },
+        storageTiers
       };
     } catch (error) {
       log(`Error fetching provider capacity: ${error}`, 'vcd-client');
@@ -805,7 +823,8 @@ export class VcdClient {
       return {
         cpu: { capacity: 0, allocated: 0, reserved: 0, used: 0, available: 0, units: 'MHz' },
         memory: { capacity: 0, allocated: 0, reserved: 0, used: 0, available: 0, units: 'MB' },
-        storage: { capacity: 0, allocated: 0, used: 0, available: 0, units: 'MB' }
+        storage: { capacity: 0, allocated: 0, used: 0, available: 0, units: 'MB' },
+        storageTiers: []
       };
     }
   }

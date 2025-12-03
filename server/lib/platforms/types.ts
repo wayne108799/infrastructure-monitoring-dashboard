@@ -40,6 +40,15 @@ export interface StorageMetrics {
   units: string;
 }
 
+export interface StorageTier {
+  name: string;
+  capacity: number;
+  limit: number;
+  used: number;
+  available: number;
+  units: string;
+}
+
 export interface TenantAllocation {
   id: string;
   name: string;
@@ -62,6 +71,7 @@ export interface SiteSummary {
   cpu: ResourceMetrics;
   memory: ResourceMetrics;
   storage: StorageMetrics;
+  storageTiers?: StorageTier[];  // Breakdown by storage tier/profile
   network: NetworkMetrics;
 }
 

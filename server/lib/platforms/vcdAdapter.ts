@@ -4,7 +4,8 @@ import type {
   PlatformConfig, 
   SiteInfo, 
   SiteSummary, 
-  TenantAllocation 
+  TenantAllocation,
+  StorageTier
 } from './types';
 import { VcdClient, type VcdConfig } from '../vcdClient';
 
@@ -81,6 +82,9 @@ export class VcdAdapter implements PlatformClient {
       let cpuAllocated = 0, cpuUsed = 0, cpuReserved = 0;
       let memoryAllocated = 0, memoryUsed = 0, memoryReserved = 0;
       let storageLimit = 0, storageUsed = 0;
+      
+      // Aggregate storage by tier name
+      const storageTierMap: Record<string, { limit: number; used: number }> = {};
 
       for (const vdc of comprehensiveVdcs) {
         if (vdc.vmResources) {
@@ -99,10 +103,40 @@ export class VcdAdapter implements PlatformClient {
         
         if (vdc.storageProfiles && Array.isArray(vdc.storageProfiles)) {
           for (const profile of vdc.storageProfiles) {
-            storageLimit += profile.limit || 0;
-            storageUsed += profile.used || 0;
+            const profileLimit = profile.limit || 0;
+            const profileUsed = profile.used || 0;
+            storageLimit += profileLimit;
+            storageUsed += profileUsed;
+            
+            // Aggregate by tier name
+            const tierName = profile.name || 'Default';
+            if (!storageTierMap[tierName]) {
+              storageTierMap[tierName] = { limit: 0, used: 0 };
+            }
+            storageTierMap[tierName].limit += profileLimit;
+            storageTierMap[tierName].used += profileUsed;
           }
         }
+      }
+      
+      // Build storage tiers array with capacity from provider storage
+      const storageTiers: StorageTier[] = [];
+      const providerStorageTiers = providerCapacity.storageTiers || [];
+      
+      for (const tierName of Object.keys(storageTierMap)) {
+        const tierData = storageTierMap[tierName];
+        // Try to find matching provider capacity for this tier
+        const providerTier = providerStorageTiers.find((t: any) => t.name === tierName);
+        const tierCapacity = providerTier?.capacity || tierData.limit;
+        
+        storageTiers.push({
+          name: tierName,
+          capacity: tierCapacity,
+          limit: tierData.limit,
+          used: tierData.used,
+          available: tierCapacity - tierData.used,
+          units: 'MB'
+        });
       }
 
       // Calculate capacities - prefer Provider VDC capacity, fallback to aggregated Org VDC limits
@@ -141,6 +175,7 @@ export class VcdAdapter implements PlatformClient {
           available: storageCapacity - storageUsed,
           units: 'MB',
         },
+        storageTiers: storageTiers.sort((a, b) => a.name.localeCompare(b.name)),
         network: {
           totalIps: siteIpSummary.totalIps,
           allocatedIps: siteIpSummary.allocatedIps,

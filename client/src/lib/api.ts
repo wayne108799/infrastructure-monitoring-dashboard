@@ -48,6 +48,15 @@ export interface StorageMetrics {
   units: string;
 }
 
+export interface StorageTier {
+  name: string;
+  capacity: number;
+  limit: number;
+  used: number;
+  available: number;
+  units: string;
+}
+
 export interface NetworkMetrics {
   totalIps: number;
   allocatedIps: number;
@@ -196,6 +205,7 @@ export interface SiteSummary {
   cpu: ResourceMetrics;
   memory: ResourceMetrics;
   storage: StorageMetrics;
+  storageTiers?: StorageTier[];
   network: NetworkMetrics;
   platformType?: PlatformType;
 }

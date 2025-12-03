@@ -290,33 +290,66 @@ export default function Details() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/50 bg-card/50">
-                <CardContent className="p-5">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
-                    <Database className="h-3.5 w-3.5 text-emerald-500" /> Storage
-                  </h4>
-                  <ResourceBar
-                    label="Usage"
-                    storageData={{
-                      used: siteSummary?.storage?.used || 0,
-                      limit: siteSummary?.storage?.capacity || 0,
-                      units: 'MB'
-                    }}
-                    color="bg-emerald-500"
-                    type="storage"
-                  />
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                      <div className="font-mono font-medium text-foreground">{toTB(siteSummary?.storage?.capacity || 0)}</div>
-                      <div className="text-muted-foreground">Capacity TB</div>
+              {/* Storage - Show each tier separately if available */}
+              {siteSummary?.storageTiers && siteSummary.storageTiers.length > 0 ? (
+                siteSummary.storageTiers.map((tier, idx) => (
+                  <Card key={tier.name || idx} className="border-border/50 bg-card/50">
+                    <CardContent className="p-5">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                        <Database className="h-3.5 w-3.5 text-emerald-500" /> {tier.name}
+                      </h4>
+                      <ResourceBar
+                        label="Usage"
+                        storageData={{
+                          used: tier.used || 0,
+                          limit: tier.capacity || 0,
+                          units: 'MB'
+                        }}
+                        color="bg-emerald-500"
+                        type="storage"
+                      />
+                      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                          <div className="font-mono font-medium text-foreground">{toTB(tier.capacity || 0)}</div>
+                          <div className="text-muted-foreground">Capacity TB</div>
+                        </div>
+                        <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                          <div className="font-mono font-medium text-emerald-500">{toTB(tier.limit || 0)}</div>
+                          <div className="text-muted-foreground">Allocated TB</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <Card className="border-border/50 bg-card/50">
+                  <CardContent className="p-5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                      <Database className="h-3.5 w-3.5 text-emerald-500" /> Storage
+                    </h4>
+                    <ResourceBar
+                      label="Usage"
+                      storageData={{
+                        used: siteSummary?.storage?.used || 0,
+                        limit: siteSummary?.storage?.capacity || 0,
+                        units: 'MB'
+                      }}
+                      color="bg-emerald-500"
+                      type="storage"
+                    />
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                        <div className="font-mono font-medium text-foreground">{toTB(siteSummary?.storage?.capacity || 0)}</div>
+                        <div className="text-muted-foreground">Capacity TB</div>
+                      </div>
+                      <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                        <div className="font-mono font-medium text-emerald-500">{toTB(siteSummary?.storage?.limit || 0)}</div>
+                        <div className="text-muted-foreground">Allocated TB</div>
+                      </div>
                     </div>
-                    <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                      <div className="font-mono font-medium text-emerald-500">{toTB(siteSummary?.storage?.limit || 0)}</div>
-                      <div className="text-muted-foreground">Allocated TB</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="p-5">

@@ -123,6 +123,7 @@ export async function registerRoutes(
           available: summary.storage.available,
           units: summary.storage.units,
         },
+        storageTiers: summary.storageTiers,
         network: summary.network,
         platformType: summary.platformType,
       });
