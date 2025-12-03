@@ -30,21 +30,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href}>
-              <a
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group",
-                  location === item.href
-                    ? "bg-sidebar-primary/10 text-sidebar-primary shadow-[0_0_0_1px_rgba(6,182,212,0.2)]"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <item.icon className={cn(
-                  "h-4 w-4 transition-colors",
-                  location === item.href ? "text-sidebar-primary" : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground"
-                )} />
-                {item.label}
-              </a>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group",
+                location === item.href
+                  ? "bg-sidebar-primary/10 text-sidebar-primary shadow-[0_0_0_1px_rgba(6,182,212,0.2)]"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )}
+            >
+              <item.icon className={cn(
+                "h-4 w-4 transition-colors",
+                location === item.href ? "text-sidebar-primary" : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground"
+              )} />
+              {item.label}
             </Link>
           ))}
         </nav>

@@ -74,42 +74,104 @@ export class VcdClient {
   private session: VcdSession | null = null;
 
   constructor(config: VcdConfig) {
-    this.config = config;
+    // Ensure URL has protocol
+    let url = config.url.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    // Remove trailing slash
+    url = url.replace(/\/$/, '');
+    
+    this.config = { ...config, url };
   }
 
   /**
    * Authenticate with VCD and get session token
+   * Tries multiple methods for compatibility with different VCD versions
    */
   async authenticate(): Promise<void> {
-    const authUrl = `${this.config.url}/api/sessions`;
-    const credentials = `${this.config.username}@${this.config.org}:${this.config.password}`;
-    const encodedCredentials = Buffer.from(credentials).toString('base64');
+    // Determine if using provider login (for System org)
+    const isProvider = this.config.org.toLowerCase() === 'system';
+    const sessionEndpoint = isProvider ? '/cloudapi/1.0.0/sessions/provider' : '/cloudapi/1.0.0/sessions';
 
+    // For provider login, try username only; for tenant login, use username@org
+    const credentialFormats = isProvider 
+      ? [
+          `${this.config.username}:${this.config.password}`,  // Just username for provider
+          `${this.config.username}@${this.config.org}:${this.config.password}`, // username@org format
+        ]
+      : [
+          `${this.config.username}@${this.config.org}:${this.config.password}`,
+        ];
+
+    // Try CloudAPI sessions first (VCD 10.4+)
+    for (const credentials of credentialFormats) {
+      const encodedCredentials = Buffer.from(credentials).toString('base64');
+      
+      try {
+        const cloudApiUrl = `${this.config.url}${sessionEndpoint}`;
+        log(`Trying CloudAPI auth at ${cloudApiUrl} with format: ${credentials.split(':')[0]}:***`, 'vcd-client');
+        
+        const response = await fetch(cloudApiUrl, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json;version=38.0',
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${encodedCredentials}`,
+          },
+        });
+
+        if (response.ok) {
+          const token = response.headers.get('x-vmware-vcloud-access-token') || 
+                        response.headers.get('x-vcloud-authorization');
+          if (token) {
+            this.session = {
+              token,
+              expiresAt: Date.now() + (30 * 60 * 1000),
+            };
+            log('VCD CloudAPI authentication successful', 'vcd-client');
+            return;
+          }
+        }
+        
+        // Log more details on failure
+        const errorText = await response.text().catch(() => '');
+        log(`CloudAPI auth returned ${response.status}: ${errorText}`, 'vcd-client');
+      } catch (error) {
+        log(`CloudAPI auth attempt failed: ${error}`, 'vcd-client');
+      }
+    }
+
+    // Try legacy /api/sessions endpoint (for older VCD or different config)
+    const legacyCreds = `${this.config.username}@${this.config.org}:${this.config.password}`;
+    const encodedLegacy = Buffer.from(legacyCreds).toString('base64');
+    
     try {
-      const response = await fetch(authUrl, {
+      const legacyUrl = `${this.config.url}/api/sessions`;
+      log(`Trying legacy auth at ${legacyUrl}`, 'vcd-client');
+      
+      const response = await fetch(legacyUrl, {
         method: 'POST',
         headers: {
-          'Accept': 'application/*+xml;version=38.0', // VCD 10.6 uses API version 38.x
-          'Authorization': `Basic ${encodedCredentials}`,
+          'Accept': 'application/*+json;version=38.0',
+          'Authorization': `Basic ${encodedLegacy}`,
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`VCD Authentication failed: ${response.status} ${response.statusText}`);
+      if (response.ok) {
+        const token = response.headers.get('x-vcloud-authorization');
+        if (token) {
+          this.session = {
+            token,
+            expiresAt: Date.now() + (30 * 60 * 1000),
+          };
+          log('VCD legacy authentication successful', 'vcd-client');
+          return;
+        }
       }
-
-      const token = response.headers.get('x-vcloud-authorization');
-      if (!token) {
-        throw new Error('No authorization token received from VCD');
-      }
-
-      // Session typically expires in 30 minutes
-      this.session = {
-        token,
-        expiresAt: Date.now() + (30 * 60 * 1000), // 30 minutes
-      };
-
-      log('VCD authentication successful', 'vcd-client');
+      
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`VCD Authentication failed: ${response.status} ${response.statusText} - ${errorText}`);
     } catch (error) {
       log(`VCD authentication error: ${error}`, 'vcd-client');
       throw error;
