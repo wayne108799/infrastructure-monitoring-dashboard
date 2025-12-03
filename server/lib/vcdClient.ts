@@ -278,36 +278,118 @@ export class VcdClient {
 
   /**
    * Get VM resources for a VDC (to calculate actual usage)
+   * Uses multiple approaches to find VMs reliably
    */
   async getVdcVmResources(vdcId: string): Promise<{ cpuUsed: number; memoryUsed: number; vmCount: number; runningVmCount: number }> {
     try {
-      // Query all VMs in this VDC using the URN format for filter
-      const encodedFilter = encodeURIComponent(`vdc==${vdcId}`);
-      const response = await this.request<{ record?: any[] }>(
-        `/api/query?type=vm&format=records&filter=${encodedFilter}`
-      );
+      const uuid = this.extractUuid(vdcId);
       
-      const vms = response.record || [];
-      let cpuUsed = 0;
-      let memoryUsed = 0;
-      let runningVmCount = 0;
-      
-      for (const vm of vms) {
-        // Status 4 = POWERED_ON, or check status string
-        const isPoweredOn = vm.status === 4 || vm.status === 'POWERED_ON' || vm.isDeployed === true;
-        if (isPoweredOn) {
-          cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000);
-          memoryUsed += vm.memoryMB || 0;
-          runningVmCount++;
+      // Try adminVM query which is more reliable for provider context
+      try {
+        const encodedFilter = encodeURIComponent(`vdc==${uuid}`);
+        const response = await this.request<{ record?: any[] }>(
+          `/api/query?type=adminVM&format=records&filter=${encodedFilter}&fields=name,status,numberOfCpus,memoryMB,vdc,isVAppTemplate`
+        );
+        
+        // Filter out vApp templates - only count actual VMs
+        const allRecords = response.record || [];
+        const vms = allRecords.filter((vm: any) => vm.isVAppTemplate !== true && vm.isVAppTemplate !== 'true');
+        
+        let cpuUsed = 0;
+        let memoryUsed = 0;
+        let runningVmCount = 0;
+        
+        for (const vm of vms) {
+          // Status 4 = POWERED_ON
+          const isPoweredOn = vm.status === 4 || vm.status === 'POWERED_ON';
+          if (isPoweredOn) {
+            cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000);
+            memoryUsed += vm.memoryMB || 0;
+            runningVmCount++;
+          }
         }
+        
+        if (vms.length > 0) {
+          log(`VDC ${uuid}: Found ${vms.length} VMs (adminVM query), ${runningVmCount} running`, 'vcd-client');
+        }
+        
+        return {
+          cpuUsed,
+          memoryUsed,
+          vmCount: vms.length,
+          runningVmCount
+        };
+      } catch (adminError) {
+        log(`adminVM query failed for ${uuid}: ${adminError}`, 'vcd-client');
+      }
+
+      // Fallback: Try CloudAPI with orgVdc filter
+      try {
+        const cloudApiFilter = encodeURIComponent(`orgVdc.id==${vdcId}`);
+        const cloudApiResponse = await this.request<{ values?: any[], resultTotal?: number }>(
+          `/cloudapi/1.0.0/vms?filter=${cloudApiFilter}&pageSize=100`
+        );
+        
+        const vms = (cloudApiResponse.values || []).filter((vm: any) => !vm.isVAppTemplate);
+        let cpuUsed = 0;
+        let memoryUsed = 0;
+        let runningVmCount = 0;
+        
+        for (const vm of vms) {
+          const isPoweredOn = vm.status === 'POWERED_ON';
+          if (isPoweredOn) {
+            cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000);
+            memoryUsed += vm.memoryMB || vm.memorySizeMB || 0;
+            runningVmCount++;
+          }
+        }
+        
+        if (vms.length > 0) {
+          log(`VDC ${uuid}: Found ${vms.length} VMs (CloudAPI), ${runningVmCount} running`, 'vcd-client');
+        }
+        
+        return {
+          cpuUsed,
+          memoryUsed,
+          vmCount: vms.length,
+          runningVmCount
+        };
+      } catch (cloudApiError) {
+        log(`CloudAPI VM query failed for ${uuid}: ${cloudApiError}`, 'vcd-client');
       }
       
-      return {
-        cpuUsed,
-        memoryUsed,
-        vmCount: vms.length,
-        runningVmCount
-      };
+      // Final fallback: standard vm query
+      try {
+        const encodedFilter = encodeURIComponent(`vdc==${uuid}`);
+        const response = await this.request<{ record?: any[] }>(
+          `/api/query?type=vm&format=records&filter=${encodedFilter}`
+        );
+        
+        const vms = (response.record || []).filter((vm: any) => vm.isVAppTemplate !== true);
+        let cpuUsed = 0;
+        let memoryUsed = 0;
+        let runningVmCount = 0;
+        
+        for (const vm of vms) {
+          const isPoweredOn = vm.status === 4 || vm.status === 'POWERED_ON' || vm.isDeployed === true;
+          if (isPoweredOn) {
+            cpuUsed += (vm.numberOfCpus || 0) * (this.config.vcpuInMhz || 2000);
+            memoryUsed += vm.memoryMB || 0;
+            runningVmCount++;
+          }
+        }
+        
+        return {
+          cpuUsed,
+          memoryUsed,
+          vmCount: vms.length,
+          runningVmCount
+        };
+      } catch (legacyError) {
+        log(`Legacy VM query failed for ${uuid}: ${legacyError}`, 'vcd-client');
+      }
+      
+      return { cpuUsed: 0, memoryUsed: 0, vmCount: 0, runningVmCount: 0 };
     } catch (error) {
       log(`Error fetching VM resources for ${vdcId}: ${error}`, 'vcd-client');
       return { cpuUsed: 0, memoryUsed: 0, vmCount: 0, runningVmCount: 0 };
