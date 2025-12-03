@@ -689,6 +689,88 @@ export class VcdClient {
   }
 
   /**
+   * Get vCenter Servers registered with VCD
+   */
+  async getVimServers(): Promise<any[]> {
+    try {
+      const response = await this.request<any>(`/api/admin/extension/vimServerReferences`);
+      return response.vimServerReference || [];
+    } catch (e) {
+      log(`Error fetching vCenter servers: ${e}`, 'vcd-client');
+      return [];
+    }
+  }
+
+  /**
+   * Get actual vCenter storage profile capacity (datastore capacity from vCenter)
+   * This returns TotalStorageMb and FreeStorageMb - the actual physical capacity
+   */
+  async getVcenterStorageCapacity(): Promise<Record<string, { totalMb: number; freeMb: number; usedMb: number }>> {
+    try {
+      const vimServers = await this.getVimServers();
+      log(`Found ${vimServers.length} vCenter Server(s)`, 'vcd-client');
+      
+      const storageMap: Record<string, { totalMb: number; freeMb: number; usedMb: number }> = {};
+      
+      for (const vim of vimServers) {
+        const vimId = vim.href?.split('/').pop();
+        if (!vimId) continue;
+        
+        try {
+          // Get storage profiles from this vCenter - this returns actual datastore capacity
+          const response = await this.request<any>(`/api/admin/extension/vimServer/${vimId}/storageProfiles`);
+          
+          // Log raw response structure for debugging
+          log(`vCenter ${vim.name} raw response keys: ${Object.keys(response || {}).join(', ')}`, 'vcd-client');
+          
+          // VCD API may return profiles in different formats - check for vmwStorageProfile (lowercase)
+          const profiles = response.vmwStorageProfile || response.vMWStorageProfile || 
+                          response.VMWStorageProfile || response.storageProfile || response.record || [];
+          
+          log(`vCenter ${vim.name}: Found ${profiles.length} storage profile(s)`, 'vcd-client');
+          
+          // If we got profiles, log the first one's structure for debugging
+          if (profiles.length > 0) {
+            log(`First profile keys: ${Object.keys(profiles[0] || {}).join(', ')}`, 'vcd-client');
+          }
+          
+          for (const profile of profiles) {
+            const name = profile.name || profile.Name || 'Unknown';
+            // VCD vimServer API returns storage in KB despite field names suggesting MB
+            // We need to divide by 1024 to convert to actual MB
+            const rawTotal = profile.totalStorageMB || profile.TotalStorageMb || 
+                           profile.totalStorageMb || 0;
+            const rawFree = profile.freeStorageMB || profile.FreeStorageMb || 
+                          profile.freeStorageMb || 0;
+            
+            // These values are actually in KB, convert to MB
+            const totalMb = Math.round(rawTotal / 1024);
+            const freeMb = Math.round(rawFree / 1024);
+            const usedMb = totalMb - freeMb;
+            
+            log(`vCenter Storage Profile "${name}": rawTotal=${rawTotal}, totalMb=${totalMb}, freeMb=${freeMb}, usedMb=${usedMb}`, 'vcd-client');
+            
+            // Aggregate by profile name (in case same profile exists on multiple vCenters)
+            if (!storageMap[name]) {
+              storageMap[name] = { totalMb: 0, freeMb: 0, usedMb: 0 };
+            }
+            storageMap[name].totalMb += totalMb;
+            storageMap[name].freeMb += freeMb;
+            storageMap[name].usedMb += usedMb;
+          }
+        } catch (profileError) {
+          log(`Error fetching storage profiles for vCenter ${vim.name}: ${profileError}`, 'vcd-client');
+        }
+      }
+      
+      return storageMap;
+    } catch (e) {
+      log(`Error fetching vCenter storage capacity: ${e}`, 'vcd-client');
+      return {};
+    }
+  }
+
+  /**
    * Get Provider VDCs (resource pool capacity) - requires provider admin access
    */
   async getProviderVdcs(): Promise<any[]> {
@@ -725,6 +807,7 @@ export class VcdClient {
 
   /**
    * Get Provider VDC capacity summary (total resource pool availability)
+   * Also fetches actual vCenter datastore capacity when available
    */
   async getProviderCapacity(): Promise<{
     cpu: { capacity: number; allocated: number; reserved: number; used: number; available: number; units: string };
@@ -733,9 +816,14 @@ export class VcdClient {
     storageTiers: Array<{ name: string; capacity: number; used: number }>;
   }> {
     try {
-      const pvdcs = await this.getProviderVdcs();
+      // Fetch Provider VDCs and vCenter storage capacity in parallel
+      const [pvdcs, vcenterStorage] = await Promise.all([
+        this.getProviderVdcs(),
+        this.getVcenterStorageCapacity()
+      ]);
       
       log(`Found ${pvdcs.length} Provider VDC(s)`, 'vcd-client');
+      log(`vCenter storage profiles found: ${Object.keys(vcenterStorage).join(', ') || 'none'}`, 'vcd-client');
       
       let cpuCapacity = 0, cpuAllocated = 0, cpuReserved = 0, cpuUsed = 0;
       let memoryCapacity = 0, memoryAllocated = 0, memoryReserved = 0, memoryUsed = 0;
@@ -779,18 +867,43 @@ export class VcdClient {
           );
           
           for (const profile of profileDetails) {
-            storageCapacity += profile.capacity;
-            storageUsed += profile.used;
+            const tierName = profile.name;
+            
+            // Check if we have actual vCenter capacity for this profile
+            // Try exact match first, then case-insensitive match
+            let vcCapacity = vcenterStorage[tierName];
+            if (!vcCapacity) {
+              // Try to find matching profile by name (case-insensitive, partial match)
+              const matchingKey = Object.keys(vcenterStorage).find(k => 
+                k.toLowerCase() === tierName.toLowerCase() ||
+                k.toLowerCase().includes(tierName.toLowerCase()) ||
+                tierName.toLowerCase().includes(k.toLowerCase())
+              );
+              if (matchingKey) {
+                vcCapacity = vcenterStorage[matchingKey];
+                log(`Matched Provider profile "${tierName}" to vCenter profile "${matchingKey}"`, 'vcd-client');
+              }
+            }
+            
+            // Use vCenter capacity if available, otherwise fall back to Provider VDC capacity
+            const actualCapacity = vcCapacity?.totalMb || profile.capacity;
+            const actualUsed = vcCapacity?.usedMb || profile.used;
+            
+            storageCapacity += actualCapacity;
+            storageUsed += actualUsed;
             
             // Aggregate by tier name
-            const tierName = profile.name;
             if (!storageTierMap[tierName]) {
               storageTierMap[tierName] = { capacity: 0, used: 0 };
             }
-            storageTierMap[tierName].capacity += profile.capacity;
-            storageTierMap[tierName].used += profile.used;
+            storageTierMap[tierName].capacity += actualCapacity;
+            storageTierMap[tierName].used += actualUsed;
             
-            log(`Provider VDC Storage Profile "${profile.name}": capacity=${profile.capacity}MB, used=${profile.used}MB`, 'vcd-client');
+            if (vcCapacity) {
+              log(`Provider VDC Storage Profile "${tierName}": vCenter capacity=${actualCapacity}MB, used=${actualUsed}MB (from vimServer API)`, 'vcd-client');
+            } else {
+              log(`Provider VDC Storage Profile "${tierName}": capacity=${actualCapacity}MB, used=${actualUsed}MB (from Provider VDC)`, 'vcd-client');
+            }
           }
         }
       }
