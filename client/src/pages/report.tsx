@@ -84,8 +84,8 @@ export default function Report() {
           tenantId: row.tenantId,
           businessId: row.businessId || '',
           businessName: row.businessName || '',
-          vcpu: Math.round(row.cpuAllocatedMHz / 2800),
-          ramGB: Math.round(row.ramAllocatedMB / 1024),
+          vcpu: Math.round(row.cpuUsedMHz / 2800),
+          ramGB: Math.round(row.ramUsedMB / 1024),
           storageHpsGB: 0,
           storageSpsGB: 0,
           storageVvolGB: 0,
@@ -103,7 +103,7 @@ export default function Report() {
       }
       const existing = uniqueTenants.get(key);
       const tierName = row.storageTier?.toLowerCase() || '';
-      const tierGB = Math.round(row.tierLimitMB / 1024);
+      const tierGB = Math.round(row.tierUsedMB / 1024);
       if (tierName.includes('hps') || tierName.includes('high')) {
         existing.storageHpsGB += tierGB;
       } else if (tierName.includes('sps') || tierName.includes('standard')) {
