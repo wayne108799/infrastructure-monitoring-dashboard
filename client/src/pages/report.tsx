@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { 
@@ -18,29 +19,6 @@ import {
   type Site,
   type TenantCommitLevel
 } from '@/lib/api';
-
-interface ReportRow {
-  site: string;
-  siteLocation: string;
-  platform: string;
-  tenant: string;
-  vcpu: number;
-  ramGB: number;
-  storageHpsGB: number;
-  storageSpsGB: number;
-  storageVvolGB: number;
-  storageOtherGB: number;
-  allocatedIps: number;
-  commitVcpu: string;
-  commitGhz: string;
-  commitRamGB: string;
-  commitHpsGB: string;
-  commitSpsGB: string;
-  commitVvolGB: string;
-  commitOtherGB: string;
-  commitIps: string;
-  notes: string;
-}
 
 export default function Report() {
   const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -97,7 +75,6 @@ export default function Report() {
     for (const row of filteredData) {
       const key = `${row.siteId}:${row.tenantId}`;
       if (!uniqueTenants.has(key)) {
-        // Look up commit level from our fetched commit levels
         const commitLevel = commitLevelMap.get(key);
         uniqueTenants.set(key, {
           site: row.site,
@@ -112,7 +89,6 @@ export default function Report() {
           storageOtherGB: 0,
           allocatedIps: row.allocatedIps,
           commitVcpu: commitLevel?.vcpuCount || '',
-          commitGhz: commitLevel?.vcpuSpeedGhz || '',
           commitRamGB: commitLevel?.ramGB || '',
           commitHpsGB: commitLevel?.storageHpsGB || '',
           commitSpsGB: commitLevel?.storageSpsGB || '',
@@ -138,8 +114,25 @@ export default function Report() {
   }
 
   const tableData = Array.from(uniqueTenants.values());
-
   const platforms = sites ? Array.from(new Set(sites.map(s => s.platformType))) : [];
+
+  const calcOverage = (allocated: number, commit: string) => {
+    if (!commit) return null;
+    const diff = allocated - parseFloat(commit);
+    return diff > 0 ? Math.round(diff) : null;
+  };
+
+  const overageCount = tableData.reduce((count, row) => {
+    const hasOverage = 
+      calcOverage(row.vcpu, row.commitVcpu) ||
+      calcOverage(row.ramGB, row.commitRamGB) ||
+      calcOverage(row.storageHpsGB, row.commitHpsGB) ||
+      calcOverage(row.storageSpsGB, row.commitSpsGB) ||
+      calcOverage(row.storageVvolGB, row.commitVvolGB) ||
+      calcOverage(row.storageOtherGB, row.commitOtherGB) ||
+      calcOverage(row.allocatedIps, row.commitIps);
+    return hasOverage ? count + 1 : count;
+  }, 0);
 
   if (sitesError) {
     return (
@@ -155,12 +148,36 @@ export default function Report() {
     );
   }
 
+  const TenantInfo = ({ row }: { row: any }) => (
+    <>
+      <TableCell className="font-medium">{row.tenant}</TableCell>
+      <TableCell>
+        <div className="flex flex-col">
+          <span className="text-sm">{row.site}</span>
+          <span className="text-xs text-muted-foreground">{row.siteLocation}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge 
+          variant="outline" 
+          className="text-xs"
+          style={{ 
+            borderColor: getPlatformColor(row.platform.toLowerCase()),
+            color: getPlatformColor(row.platform.toLowerCase()),
+          }}
+        >
+          {row.platform}
+        </Badge>
+      </TableCell>
+    </>
+  );
+
   return (
     <DashboardLayout>
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Tenant Report</h1>
-          <p className="text-muted-foreground mt-1">Resource allocation and commit levels by customer.</p>
+          <p className="text-muted-foreground mt-1">Resource allocation, commits, and overages by customer.</p>
         </div>
         <div className="flex items-center gap-4">
           <Select value={platformFilter} onValueChange={setPlatformFilter}>
@@ -189,158 +206,200 @@ export default function Report() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Customer Resource Allocation
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(sitesLoading || reportLoading) ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="mt-2 text-sm text-muted-foreground">Loading report data...</p>
-              </div>
-            </div>
-          ) : tableData.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No tenant data available
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 bg-background">Customer</TableHead>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead className="text-right">vCPU</TableHead>
-                    <TableHead className="text-right">RAM (GB)</TableHead>
-                    <TableHead className="text-right">HPS (GB)</TableHead>
-                    <TableHead className="text-right">SPS (GB)</TableHead>
-                    <TableHead className="text-right">VVol (GB)</TableHead>
-                    <TableHead className="text-right">Other (GB)</TableHead>
-                    <TableHead className="text-right">IPs</TableHead>
-                    <TableHead className="border-l text-right">Commit vCPU</TableHead>
-                    <TableHead className="text-right">Commit RAM</TableHead>
-                    <TableHead className="text-right">Commit HPS</TableHead>
-                    <TableHead className="text-right">Commit SPS</TableHead>
-                    <TableHead className="text-right">Commit VVol</TableHead>
-                    <TableHead className="text-right">Commit Other</TableHead>
-                    <TableHead className="text-right">Commit IPs</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead className="border-l text-right">Over vCPU</TableHead>
-                    <TableHead className="text-right">Over RAM</TableHead>
-                    <TableHead className="text-right">Over HPS</TableHead>
-                    <TableHead className="text-right">Over SPS</TableHead>
-                    <TableHead className="text-right">Over VVol</TableHead>
-                    <TableHead className="text-right">Over Other</TableHead>
-                    <TableHead className="text-right">Over IPs</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tableData.map((row, idx) => (
-                    <TableRow key={idx} data-testid={`row-tenant-${idx}`}>
-                      <TableCell className="sticky left-0 bg-background font-medium">
-                        {row.tenant}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm">{row.site}</span>
-                          <span className="text-xs text-muted-foreground">{row.siteLocation}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs"
-                          style={{ 
-                            borderColor: getPlatformColor(row.platform.toLowerCase()),
-                            color: getPlatformColor(row.platform.toLowerCase()),
-                          }}
-                        >
-                          {row.platform}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{row.vcpu}</TableCell>
-                      <TableCell className="text-right font-mono">{row.ramGB}</TableCell>
-                      <TableCell className="text-right font-mono">{row.storageHpsGB || '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{row.storageSpsGB || '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{row.storageVvolGB || '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{row.storageOtherGB || '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{row.allocatedIps}</TableCell>
-                      <TableCell className="border-l text-right font-mono text-green-600">
-                        {row.commitVcpu || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitRamGB || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitHpsGB || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitSpsGB || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitVvolGB || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitOtherGB || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
-                        {row.commitIps || '-'}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                        {row.notes || '-'}
-                      </TableCell>
-                      <TableCell className="border-l text-right font-mono text-red-600">
-                        {row.commitVcpu && row.vcpu > parseFloat(row.commitVcpu) 
-                          ? Math.round(row.vcpu - parseFloat(row.commitVcpu)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitRamGB && row.ramGB > parseFloat(row.commitRamGB) 
-                          ? Math.round(row.ramGB - parseFloat(row.commitRamGB)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitHpsGB && row.storageHpsGB > parseFloat(row.commitHpsGB) 
-                          ? Math.round(row.storageHpsGB - parseFloat(row.commitHpsGB)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitSpsGB && row.storageSpsGB > parseFloat(row.commitSpsGB) 
-                          ? Math.round(row.storageSpsGB - parseFloat(row.commitSpsGB)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitVvolGB && row.storageVvolGB > parseFloat(row.commitVvolGB) 
-                          ? Math.round(row.storageVvolGB - parseFloat(row.commitVvolGB)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitOtherGB && row.storageOtherGB > parseFloat(row.commitOtherGB) 
-                          ? Math.round(row.storageOtherGB - parseFloat(row.commitOtherGB)) 
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
-                        {row.commitIps && row.allocatedIps > parseFloat(row.commitIps) 
-                          ? Math.round(row.allocatedIps - parseFloat(row.commitIps)) 
-                          : '-'}
-                      </TableCell>
+      {(sitesLoading || reportLoading) ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="mt-2 text-sm text-muted-foreground">Loading report data...</p>
+          </div>
+        </div>
+      ) : tableData.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No tenant data available
+        </div>
+      ) : (
+        <Tabs defaultValue="allocations" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="allocations" className="flex items-center gap-2" data-testid="tab-allocations">
+              <TrendingUp className="h-4 w-4" />
+              Allocations
+            </TabsTrigger>
+            <TabsTrigger value="commits" className="flex items-center gap-2" data-testid="tab-commits">
+              <Target className="h-4 w-4" />
+              Commits
+            </TabsTrigger>
+            <TabsTrigger value="overages" className="flex items-center gap-2" data-testid="tab-overages">
+              <AlertTriangle className="h-4 w-4" />
+              Overages
+              {overageCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                  {overageCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="allocations">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Current Allocations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Site</TableHead>
+                      <TableHead>Platform</TableHead>
+                      <TableHead className="text-right">vCPU</TableHead>
+                      <TableHead className="text-right">RAM (GB)</TableHead>
+                      <TableHead className="text-right">HPS (GB)</TableHead>
+                      <TableHead className="text-right">SPS (GB)</TableHead>
+                      <TableHead className="text-right">VVol (GB)</TableHead>
+                      <TableHead className="text-right">Other (GB)</TableHead>
+                      <TableHead className="text-right">IPs</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {tableData.map((row, idx) => (
+                      <TableRow key={idx} data-testid={`row-alloc-${idx}`}>
+                        <TenantInfo row={row} />
+                        <TableCell className="text-right font-mono">{row.vcpu}</TableCell>
+                        <TableCell className="text-right font-mono">{row.ramGB}</TableCell>
+                        <TableCell className="text-right font-mono">{row.storageHpsGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{row.storageSpsGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{row.storageVvolGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{row.storageOtherGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono">{row.allocatedIps}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="commits">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-600">
+                  <Target className="h-5 w-5" />
+                  Minimum Commit Levels
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Site</TableHead>
+                      <TableHead>Platform</TableHead>
+                      <TableHead className="text-right">vCPU</TableHead>
+                      <TableHead className="text-right">RAM (GB)</TableHead>
+                      <TableHead className="text-right">HPS (GB)</TableHead>
+                      <TableHead className="text-right">SPS (GB)</TableHead>
+                      <TableHead className="text-right">VVol (GB)</TableHead>
+                      <TableHead className="text-right">Other (GB)</TableHead>
+                      <TableHead className="text-right">IPs</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableData.map((row, idx) => (
+                      <TableRow key={idx} data-testid={`row-commit-${idx}`}>
+                        <TenantInfo row={row} />
+                        <TableCell className="text-right font-mono text-green-600">{row.commitVcpu || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitRamGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitHpsGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitSpsGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitVvolGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitOtherGB || '-'}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{row.commitIps || '-'}</TableCell>
+                        <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
+                          {row.notes || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="overages">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Overages (Allocation - Commit)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Site</TableHead>
+                      <TableHead>Platform</TableHead>
+                      <TableHead className="text-right">vCPU</TableHead>
+                      <TableHead className="text-right">RAM (GB)</TableHead>
+                      <TableHead className="text-right">HPS (GB)</TableHead>
+                      <TableHead className="text-right">SPS (GB)</TableHead>
+                      <TableHead className="text-right">VVol (GB)</TableHead>
+                      <TableHead className="text-right">Other (GB)</TableHead>
+                      <TableHead className="text-right">IPs</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableData.map((row, idx) => {
+                      const overVcpu = calcOverage(row.vcpu, row.commitVcpu);
+                      const overRam = calcOverage(row.ramGB, row.commitRamGB);
+                      const overHps = calcOverage(row.storageHpsGB, row.commitHpsGB);
+                      const overSps = calcOverage(row.storageSpsGB, row.commitSpsGB);
+                      const overVvol = calcOverage(row.storageVvolGB, row.commitVvolGB);
+                      const overOther = calcOverage(row.storageOtherGB, row.commitOtherGB);
+                      const overIps = calcOverage(row.allocatedIps, row.commitIps);
+                      
+                      return (
+                        <TableRow key={idx} data-testid={`row-overage-${idx}`}>
+                          <TenantInfo row={row} />
+                          <TableCell className={`text-right font-mono ${overVcpu ? 'text-red-600 font-bold' : ''}`}>
+                            {overVcpu ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overRam ? 'text-red-600 font-bold' : ''}`}>
+                            {overRam ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overHps ? 'text-red-600 font-bold' : ''}`}>
+                            {overHps ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overSps ? 'text-red-600 font-bold' : ''}`}>
+                            {overSps ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overVvol ? 'text-red-600 font-bold' : ''}`}>
+                            {overVvol ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overOther ? 'text-red-600 font-bold' : ''}`}>
+                            {overOther ?? '-'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${overIps ? 'text-red-600 font-bold' : ''}`}>
+                            {overIps ?? '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
 
       <div className="mt-4 text-sm text-muted-foreground">
-        <p>* vCPU is calculated from allocated MHz assuming 2.8 GHz per core. <span className="text-green-600">Commit levels in green</span>, <span className="text-red-600">overages in red</span>.</p>
+        <p>* vCPU is calculated from allocated MHz assuming 2.8 GHz per core.</p>
       </div>
     </DashboardLayout>
   );
