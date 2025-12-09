@@ -231,6 +231,13 @@ export default function Report() {
                     <TableHead className="text-right">Commit Other</TableHead>
                     <TableHead className="text-right">Commit IPs</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead className="border-l text-right">Over vCPU</TableHead>
+                    <TableHead className="text-right">Over RAM</TableHead>
+                    <TableHead className="text-right">Over HPS</TableHead>
+                    <TableHead className="text-right">Over SPS</TableHead>
+                    <TableHead className="text-right">Over VVol</TableHead>
+                    <TableHead className="text-right">Over Other</TableHead>
+                    <TableHead className="text-right">Over IPs</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -288,6 +295,41 @@ export default function Report() {
                       <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
                         {row.notes || '-'}
                       </TableCell>
+                      <TableCell className="border-l text-right font-mono text-red-600">
+                        {row.commitVcpu && row.vcpu > parseFloat(row.commitVcpu) 
+                          ? Math.round(row.vcpu - parseFloat(row.commitVcpu)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitRamGB && row.ramGB > parseFloat(row.commitRamGB) 
+                          ? Math.round(row.ramGB - parseFloat(row.commitRamGB)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitHpsGB && row.storageHpsGB > parseFloat(row.commitHpsGB) 
+                          ? Math.round(row.storageHpsGB - parseFloat(row.commitHpsGB)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitSpsGB && row.storageSpsGB > parseFloat(row.commitSpsGB) 
+                          ? Math.round(row.storageSpsGB - parseFloat(row.commitSpsGB)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitVvolGB && row.storageVvolGB > parseFloat(row.commitVvolGB) 
+                          ? Math.round(row.storageVvolGB - parseFloat(row.commitVvolGB)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitOtherGB && row.storageOtherGB > parseFloat(row.commitOtherGB) 
+                          ? Math.round(row.storageOtherGB - parseFloat(row.commitOtherGB)) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-red-600">
+                        {row.commitIps && row.allocatedIps > parseFloat(row.commitIps) 
+                          ? Math.round(row.allocatedIps - parseFloat(row.commitIps)) 
+                          : '-'}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -298,7 +340,7 @@ export default function Report() {
       </Card>
 
       <div className="mt-4 text-sm text-muted-foreground">
-        <p>* vCPU is calculated from allocated MHz assuming 2.8 GHz per core. Commit levels are shown in green.</p>
+        <p>* vCPU is calculated from allocated MHz assuming 2.8 GHz per core. <span className="text-green-600">Commit levels in green</span>, <span className="text-red-600">overages in red</span>.</p>
       </div>
     </DashboardLayout>
   );
