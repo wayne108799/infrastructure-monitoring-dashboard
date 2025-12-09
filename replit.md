@@ -70,6 +70,21 @@ PROXMOX_PVE1_LOCATION=EU-Central
 - `GET /api/sites/:siteId/vdcs` - Legacy VDC endpoint (backward compatible)
 - `GET /api/summary` - Aggregated summary across all sites
 - `POST /api/sites/:siteId/test-connection` - Test site connectivity
+- `GET /api/commit-levels` - List all tenant commit levels (optional `?siteId=` filter)
+- `GET /api/commit-levels/:siteId/:tenantId` - Get specific tenant commit level
+- `POST /api/commit-levels` - Create/update tenant commit level
+- `DELETE /api/commit-levels/:siteId/:tenantId` - Delete tenant commit level
+- `GET /api/export/tenants` - Export all tenants as CSV (includes commit levels)
+
+## Minimum Commit Levels
+On the Details page, each tenant card has a "Set Commit" button to define minimum resource commitments:
+- **vCPU Count** and **CPU Speed (GHz)**
+- **RAM (GB)**
+- **Storage per tier**: HPS, SPS, VVol, Other (in GB)
+- **Public IPs**
+- **Notes**
+
+These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
 ## Recent Changes
 - **Storage Capacity Fix**: Now correctly retrieves Provider VDC storage capacity from vCenter
