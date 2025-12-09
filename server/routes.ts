@@ -429,9 +429,11 @@ export async function registerRoutes(
       
       interface ExportRow {
         timestamp: string;
+        siteId: string;
         site: string;
         siteLocation: string;
         platform: string;
+        tenantId: string;
         tenant: string;
         status: string;
         vmCount: number;
@@ -473,9 +475,11 @@ export async function registerRoutes(
             
             const baseRow = {
               timestamp,
+              siteId: site.id,
               site: site.info.name,
               siteLocation: site.info.location,
               platform: site.platformType.toUpperCase(),
+              tenantId: tenant.id,
               tenant: tenant.name,
               status: tenant.status,
               vmCount: tenant.vmCount,

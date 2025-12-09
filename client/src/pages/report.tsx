@@ -71,7 +71,7 @@ export default function Report() {
   const commitLevelMap = new Map<string, TenantCommitLevel>();
   if (commitLevels) {
     for (const level of commitLevels) {
-      commitLevelMap.set(`${level.siteId}:${level.tenantName}`, level);
+      commitLevelMap.set(`${level.siteId}:${level.tenantId}`, level);
     }
   }
 
@@ -95,8 +95,10 @@ export default function Report() {
   const uniqueTenants = new Map<string, any>();
   if (filteredData) {
     for (const row of filteredData) {
-      const key = `${row.site}:${row.tenant}`;
+      const key = `${row.siteId}:${row.tenantId}`;
       if (!uniqueTenants.has(key)) {
+        // Look up commit level from our fetched commit levels
+        const commitLevel = commitLevelMap.get(key);
         uniqueTenants.set(key, {
           site: row.site,
           siteLocation: row.siteLocation,
@@ -109,15 +111,15 @@ export default function Report() {
           storageVvolGB: 0,
           storageOtherGB: 0,
           allocatedIps: row.allocatedIps,
-          commitVcpu: row.commitVcpu || '',
-          commitGhz: row.commitGhz || '',
-          commitRamGB: row.commitRamGB || '',
-          commitHpsGB: row.commitHpsGB || '',
-          commitSpsGB: row.commitSpsGB || '',
-          commitVvolGB: row.commitVvolGB || '',
-          commitOtherGB: row.commitOtherGB || '',
-          commitIps: row.commitIps || '',
-          notes: row.commitNotes || '',
+          commitVcpu: commitLevel?.vcpuCount || '',
+          commitGhz: commitLevel?.vcpuSpeedGhz || '',
+          commitRamGB: commitLevel?.ramGB || '',
+          commitHpsGB: commitLevel?.storageHpsGB || '',
+          commitSpsGB: commitLevel?.storageSpsGB || '',
+          commitVvolGB: commitLevel?.storageVvolGB || '',
+          commitOtherGB: commitLevel?.storageOtherGB || '',
+          commitIps: commitLevel?.allocatedIps || '',
+          notes: commitLevel?.notes || '',
         });
       }
       const existing = uniqueTenants.get(key);
