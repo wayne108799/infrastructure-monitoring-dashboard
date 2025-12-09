@@ -470,12 +470,13 @@ export async function registerRoutes(
           const tenants = await client.getTenantAllocations();
           
           for (const tenant of tenants) {
-            // Look up commit level for this tenant
-            const commitLevel = commitLevelMap.get(`${site.id}:${tenant.id}`);
+            // Look up commit level for this tenant using the plain siteId (not composite)
+            const plainSiteId = site.info.id;
+            const commitLevel = commitLevelMap.get(`${plainSiteId}:${tenant.id}`);
             
             const baseRow = {
               timestamp,
-              siteId: site.id,
+              siteId: plainSiteId,
               site: site.info.name,
               siteLocation: site.info.location,
               platform: site.platformType.toUpperCase(),
