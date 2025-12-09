@@ -244,11 +244,20 @@ export class VcdClient {
   }
 
   /**
-   * Get organization details by ID
+   * Get organization details by ID (accepts URN or UUID format)
    */
   async getOrgDetails(orgId: string): Promise<{ id: string; name: string; fullName: string } | null> {
     try {
-      const response = await this.request<any>(`/cloudapi/1.0.0/orgs/${orgId}`);
+      // CloudAPI expects the full URN, URL-encoded
+      // If orgId is already a URN (urn:vcloud:org:uuid), use it directly (URL-encoded)
+      // If it's just a UUID, construct the URN
+      let orgUrn = orgId;
+      if (!orgId.startsWith('urn:')) {
+        orgUrn = `urn:vcloud:org:${orgId}`;
+      }
+      
+      const encodedUrn = encodeURIComponent(orgUrn);
+      const response = await this.request<any>(`/cloudapi/1.0.0/orgs/${encodedUrn}`);
       return {
         id: response.id,
         name: response.name,
@@ -272,24 +281,49 @@ export class VcdClient {
       
       const vdcs = response.values || [];
       
+      // Log first VDC to see structure
+      if (vdcs.length > 0) {
+        log(`First VDC raw data keys: ${Object.keys(vdcs[0]).join(', ')}`, 'vcd-client');
+        if (vdcs[0].org) {
+          log(`First VDC org: ${JSON.stringify(vdcs[0].org)}`, 'vcd-client');
+        } else {
+          log(`First VDC has no 'org' field. Looking for orgRef or similar...`, 'vcd-client');
+          // Check for alternative org reference fields
+          const orgRefFields = ['orgRef', 'orgId', 'organization', 'owner', 'ownerRef'];
+          for (const field of orgRefFields) {
+            if ((vdcs[0] as any)[field]) {
+              log(`Found org in field '${field}': ${JSON.stringify((vdcs[0] as any)[field])}`, 'vcd-client');
+            }
+          }
+        }
+      }
+      
       // Fetch org details to get fullName for each unique org
       const orgCache = new Map<string, { id: string; name: string; fullName: string }>();
       
       for (const vdc of vdcs) {
-        if (vdc.org?.id && !orgCache.has(vdc.org.id)) {
-          const orgDetails = await this.getOrgDetails(vdc.org.id);
+        // Try multiple possible org reference locations
+        const orgId = vdc.org?.id || (vdc as any).orgRef?.id || (vdc as any).owner?.id;
+        if (orgId && !orgCache.has(orgId)) {
+          log(`Fetching org details for: ${orgId}`, 'vcd-client');
+          const orgDetails = await this.getOrgDetails(orgId);
           if (orgDetails) {
-            orgCache.set(vdc.org.id, orgDetails);
+            log(`Got org details: name=${orgDetails.name}, fullName=${orgDetails.fullName}`, 'vcd-client');
+            orgCache.set(orgId, orgDetails);
           }
         }
       }
       
       // Enrich VDCs with org fullName
-      return vdcs.map(vdc => ({
-        ...vdc,
-        orgName: vdc.org?.name,
-        orgFullName: vdc.org?.id ? orgCache.get(vdc.org.id)?.fullName : undefined,
-      }));
+      return vdcs.map(vdc => {
+        const orgId = vdc.org?.id || (vdc as any).orgRef?.id || (vdc as any).owner?.id;
+        const orgDetails = orgId ? orgCache.get(orgId) : undefined;
+        return {
+          ...vdc,
+          orgName: orgDetails?.name || vdc.org?.name,
+          orgFullName: orgDetails?.fullName || vdc.org?.name,
+        };
+      });
     } catch (error) {
       log(`Error fetching Org VDCs: ${error}`, 'vcd-client');
       throw error;

@@ -197,6 +197,9 @@ export class VcdAdapter implements PlatformClient {
         vdcs.map(async (vdc) => {
           try {
             const comprehensive = await this.client.getVdcComprehensive(vdc.id);
+            // Preserve org info from the initial VDC list (comprehensive doesn't include it)
+            comprehensive.orgName = vdc.orgName;
+            comprehensive.orgFullName = vdc.orgFullName;
             return this.mapVdcToTenantAllocation(comprehensive);
           } catch (error) {
             return this.mapVdcToTenantAllocation(vdc);
