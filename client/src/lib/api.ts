@@ -431,6 +431,8 @@ export interface TenantCommitLevel {
   siteId: string;
   tenantId: string;
   tenantName: string;
+  businessId?: string;
+  businessName?: string;
   vcpuCount?: string;
   vcpuSpeedGhz?: string;
   ramGB?: string;
@@ -447,6 +449,8 @@ export interface InsertTenantCommitLevel {
   siteId: string;
   tenantId: string;
   tenantName: string;
+  businessId?: string;
+  businessName?: string;
   vcpuCount?: string;
   vcpuSpeedGhz?: string;
   ramGB?: string;

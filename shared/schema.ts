@@ -53,6 +53,8 @@ export const tenantCommitLevels = pgTable("tenant_commit_levels", {
   siteId: text("site_id").notNull(),
   tenantId: text("tenant_id").notNull(),
   tenantName: text("tenant_name").notNull(),
+  businessId: text("business_id"),        // Custom 4-6 digit business ID
+  businessName: text("business_name"),    // Custom business/customer name
   vcpuCount: text("vcpu_count"),          // e.g., "10"
   vcpuSpeedGhz: text("vcpu_speed_ghz"),   // e.g., "2.8"
   ramGB: text("ram_gb"),                   // e.g., "25"

@@ -100,6 +100,8 @@ export default function Details() {
       siteId: selectedSiteId,
       tenantId: tenant.id,
       tenantName: tenant.name,
+      businessId: existing?.businessId || '',
+      businessName: existing?.businessName || '',
       vcpuCount: existing?.vcpuCount || '',
       vcpuSpeedGhz: existing?.vcpuSpeedGhz || '',
       ramGB: existing?.ramGB || '',
@@ -513,6 +515,32 @@ export default function Details() {
           
           {commitForm && (
             <div className="grid gap-4 py-4">
+              <div className="border-b pb-4">
+                <h4 className="text-sm font-medium mb-3">Customer Information</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="businessId">Business ID</Label>
+                    <Input
+                      id="businessId"
+                      placeholder="e.g., 12345"
+                      value={commitForm.businessId || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, businessId: e.target.value })}
+                      data-testid="input-business-id"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="businessName">Business Name</Label>
+                    <Input
+                      id="businessName"
+                      placeholder="e.g., Acme Corp"
+                      value={commitForm.businessName || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, businessName: e.target.value })}
+                      data-testid="input-business-name"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="vcpuCount">vCPU Count</Label>

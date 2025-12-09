@@ -435,8 +435,8 @@ export async function registerRoutes(
         platform: string;
         tenantId: string;
         tenant: string;
-        orgName: string;
-        orgFullName: string;
+        businessId: string;
+        businessName: string;
         status: string;
         vmCount: number;
         runningVmCount: number;
@@ -484,8 +484,8 @@ export async function registerRoutes(
               platform: site.platformType.toUpperCase(),
               tenantId: tenant.id,
               tenant: tenant.name,
-              orgName: tenant.orgName || '',
-              orgFullName: tenant.orgFullName || '',
+              businessId: commitLevel?.businessId || '',
+              businessName: commitLevel?.businessName || '',
               status: tenant.status,
               vmCount: tenant.vmCount,
               runningVmCount: tenant.runningVmCount,

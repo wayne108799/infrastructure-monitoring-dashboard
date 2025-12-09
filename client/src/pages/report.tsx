@@ -82,8 +82,8 @@ export default function Report() {
           platform: row.platform,
           tenant: row.tenant,
           tenantId: row.tenantId,
-          orgName: row.orgName || '',
-          orgFullName: row.orgFullName || '',
+          businessId: commitLevel?.businessId || '',
+          businessName: commitLevel?.businessName || '',
           vcpu: Math.round(row.cpuAllocatedMHz / 2800),
           ramGB: Math.round(row.ramAllocatedMB / 1024),
           storageHpsGB: 0,
@@ -155,8 +155,8 @@ export default function Report() {
     <>
       <TableCell className="font-medium">
         <div className="flex flex-col">
-          <span>{row.orgFullName || row.tenant}</span>
-          <span className="text-xs text-muted-foreground font-mono">{row.orgName || row.tenantId}</span>
+          <span>{row.businessName || row.tenant}</span>
+          <span className="text-xs text-muted-foreground font-mono">{row.businessId || row.tenantId}</span>
         </div>
       </TableCell>
       <TableCell>
