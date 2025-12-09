@@ -23,6 +23,10 @@ interface VcdOrgVdcResponse {
   href: string;
   isEnabled: boolean;
   allocationModel: string;
+  org?: {
+    id: string;
+    name: string;
+  };
   computeCapacity: {
     cpu: {
       units: string;
@@ -240,6 +244,23 @@ export class VcdClient {
   }
 
   /**
+   * Get organization details by ID
+   */
+  async getOrgDetails(orgId: string): Promise<{ id: string; name: string; fullName: string } | null> {
+    try {
+      const response = await this.request<any>(`/cloudapi/1.0.0/orgs/${orgId}`);
+      return {
+        id: response.id,
+        name: response.name,
+        fullName: response.displayName || response.fullName || response.name,
+      };
+    } catch (error) {
+      log(`Error fetching org details for ${orgId}: ${error}`, 'vcd-client');
+      return null;
+    }
+  }
+
+  /**
    * Get all Organization VDCs with compute capacity included
    */
   async getOrgVdcs(): Promise<any[]> {
@@ -249,7 +270,26 @@ export class VcdClient {
         `/cloudapi/1.0.0/vdcs`
       );
       
-      return response.values || [];
+      const vdcs = response.values || [];
+      
+      // Fetch org details to get fullName for each unique org
+      const orgCache = new Map<string, { id: string; name: string; fullName: string }>();
+      
+      for (const vdc of vdcs) {
+        if (vdc.org?.id && !orgCache.has(vdc.org.id)) {
+          const orgDetails = await this.getOrgDetails(vdc.org.id);
+          if (orgDetails) {
+            orgCache.set(vdc.org.id, orgDetails);
+          }
+        }
+      }
+      
+      // Enrich VDCs with org fullName
+      return vdcs.map(vdc => ({
+        ...vdc,
+        orgName: vdc.org?.name,
+        orgFullName: vdc.org?.id ? orgCache.get(vdc.org.id)?.fullName : undefined,
+      }));
     } catch (error) {
       log(`Error fetching Org VDCs: ${error}`, 'vcd-client');
       throw error;

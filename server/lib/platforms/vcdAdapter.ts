@@ -247,6 +247,8 @@ export class VcdAdapter implements PlatformClient {
     return {
       id: vdc.id,
       name: vdc.name,
+      orgName: vdc.orgName || vdc.org?.name,
+      orgFullName: vdc.orgFullName || vdc.org?.displayName || vdc.org?.name,
       description: vdc.description,
       status: vdc.status === 1 ? 'active' : 'inactive',
       cpu: {

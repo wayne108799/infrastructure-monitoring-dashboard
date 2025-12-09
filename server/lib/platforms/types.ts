@@ -52,6 +52,8 @@ export interface StorageTier {
 export interface TenantAllocation {
   id: string;
   name: string;
+  orgName?: string;       // Organization/business ID (short name)
+  orgFullName?: string;   // Organization full display name (customer name)
   description?: string;
   status: string;
   cpu: ResourceMetrics;
