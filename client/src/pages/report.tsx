@@ -81,6 +81,7 @@ export default function Report() {
           siteLocation: row.siteLocation,
           platform: row.platform,
           tenant: row.tenant,
+          tenantId: row.tenantId,
           vcpu: Math.round(row.cpuAllocatedMHz / 2800),
           ramGB: Math.round(row.ramAllocatedMB / 1024),
           storageHpsGB: 0,
@@ -150,7 +151,12 @@ export default function Report() {
 
   const TenantInfo = ({ row }: { row: any }) => (
     <>
-      <TableCell className="font-medium">{row.tenant}</TableCell>
+      <TableCell className="font-medium">
+        <div className="flex flex-col">
+          <span>{row.tenant}</span>
+          <span className="text-xs text-muted-foreground font-mono">{row.tenantId}</span>
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex flex-col">
           <span className="text-sm">{row.site}</span>
