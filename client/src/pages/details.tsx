@@ -1,28 +1,41 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { VDCDetailCard } from '@/components/dashboard/VDCDetailCard';
 import { ResourceBar } from '@/components/dashboard/ResourceBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Activity, Server, Database, Globe, Network, AlertCircle, Cpu, HardDrive } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Activity, Server, Database, Globe, Network, AlertCircle, Cpu, HardDrive, Settings2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { 
   fetchSites, 
   fetchSiteVdcs, 
   fetchSiteSummary, 
+  fetchCommitLevels,
+  saveCommitLevel,
   getPlatformShortName, 
   getPlatformColor,
   type Site, 
   type OrgVdc, 
-  type SiteSummary 
+  type SiteSummary,
+  type TenantCommitLevel,
+  type InsertTenantCommitLevel
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
 export default function Details() {
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+  const [editingTenant, setEditingTenant] = useState<OrgVdc | null>(null);
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+  const [commitForm, setCommitForm] = useState<InsertTenantCommitLevel | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: sites, isLoading: sitesLoading, error: sitesError } = useQuery({
     queryKey: ['sites'],
@@ -51,6 +64,62 @@ export default function Details() {
     staleTime: 2 * 60 * 1000,
     refetchInterval: 60 * 1000,
   });
+
+  const { data: commitLevels } = useQuery({
+    queryKey: ['commitLevels', selectedSiteId],
+    queryFn: () => fetchCommitLevels(selectedSiteId),
+    enabled: !!selectedSiteId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const commitLevelMap = new Map<string, TenantCommitLevel>();
+  if (commitLevels) {
+    for (const level of commitLevels) {
+      commitLevelMap.set(level.tenantId, level);
+    }
+  }
+
+  const saveCommitMutation = useMutation({
+    mutationFn: saveCommitLevel,
+    onSuccess: () => {
+      toast.success('Minimum commit level saved');
+      queryClient.invalidateQueries({ queryKey: ['commitLevels'] });
+      setCommitDialogOpen(false);
+      setEditingTenant(null);
+      setCommitForm(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to save: ${error.message}`);
+    },
+  });
+
+  const openCommitDialog = (tenant: OrgVdc) => {
+    const existing = commitLevelMap.get(tenant.id);
+    setEditingTenant(tenant);
+    setCommitForm({
+      siteId: selectedSiteId,
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      vcpuCount: existing?.vcpuCount || '',
+      vcpuSpeedGhz: existing?.vcpuSpeedGhz || '',
+      ramGB: existing?.ramGB || '',
+      storageHpsGB: existing?.storageHpsGB || '',
+      storageSpsGB: existing?.storageSpsGB || '',
+      storageVvolGB: existing?.storageVvolGB || '',
+      storageOtherGB: existing?.storageOtherGB || '',
+      allocatedIps: existing?.allocatedIps || '',
+      notes: existing?.notes || '',
+    });
+    setCommitDialogOpen(true);
+  };
+
+  const handleSaveCommit = () => {
+    if (!commitForm || !commitForm.siteId || !commitForm.tenantId || !commitForm.tenantName) {
+      toast.error('Missing required fields');
+      return;
+    }
+    saveCommitMutation.mutate(commitForm);
+  };
 
   const selectedSite = sites?.find(s => s.id === selectedSiteId);
 
@@ -397,22 +466,176 @@ export default function Details() {
               </Alert>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {vdcs.map((vdc, idx) => (
-                  <motion.div
-                    key={vdc.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="h-full"
-                  >
-                    <VDCDetailCard vdc={vdc} />
-                  </motion.div>
-                ))}
+                {vdcs.map((vdc, idx) => {
+                  const hasCommit = commitLevelMap.has(vdc.id);
+                  return (
+                    <motion.div
+                      key={vdc.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="h-full relative"
+                    >
+                      <VDCDetailCard vdc={vdc} />
+                      <div className="absolute top-2 right-2">
+                        <Button
+                          variant={hasCommit ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => openCommitDialog(vdc)}
+                          data-testid={`button-commit-${vdc.id}`}
+                          className={cn(
+                            "text-xs h-7 px-2",
+                            hasCommit && "bg-green-600 hover:bg-green-700"
+                          )}
+                        >
+                          <Settings2 className="h-3 w-3 mr-1" />
+                          {hasCommit ? 'Commit Set' : 'Set Commit'}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>
         </>
       )}
+
+      {/* Minimum Commit Level Dialog */}
+      <Dialog open={commitDialogOpen} onOpenChange={setCommitDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Set Minimum Commit Levels</DialogTitle>
+            <DialogDescription>
+              {editingTenant?.name} - Define the minimum resource commitment for this tenant. These values will be included in exports.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {commitForm && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vcpuCount">vCPU Count</Label>
+                  <Input
+                    id="vcpuCount"
+                    placeholder="e.g., 10"
+                    value={commitForm.vcpuCount || ''}
+                    onChange={(e) => setCommitForm({ ...commitForm, vcpuCount: e.target.value })}
+                    data-testid="input-vcpu-count"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vcpuSpeed">CPU Speed (GHz)</Label>
+                  <Input
+                    id="vcpuSpeed"
+                    placeholder="e.g., 2.8"
+                    value={commitForm.vcpuSpeedGhz || ''}
+                    onChange={(e) => setCommitForm({ ...commitForm, vcpuSpeedGhz: e.target.value })}
+                    data-testid="input-vcpu-speed"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ramGB">RAM (GB)</Label>
+                <Input
+                  id="ramGB"
+                  placeholder="e.g., 25"
+                  value={commitForm.ramGB || ''}
+                  onChange={(e) => setCommitForm({ ...commitForm, ramGB: e.target.value })}
+                  data-testid="input-ram-gb"
+                />
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3">Storage by Tier (GB)</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="storageHps">HPS (High Performance)</Label>
+                    <Input
+                      id="storageHps"
+                      placeholder="e.g., 200"
+                      value={commitForm.storageHpsGB || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, storageHpsGB: e.target.value })}
+                      data-testid="input-storage-hps"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="storageSps">SPS (Standard Performance)</Label>
+                    <Input
+                      id="storageSps"
+                      placeholder="e.g., 200"
+                      value={commitForm.storageSpsGB || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, storageSpsGB: e.target.value })}
+                      data-testid="input-storage-sps"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="storageVvol">VVol</Label>
+                    <Input
+                      id="storageVvol"
+                      placeholder="e.g., 0"
+                      value={commitForm.storageVvolGB || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, storageVvolGB: e.target.value })}
+                      data-testid="input-storage-vvol"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="storageOther">Other</Label>
+                    <Input
+                      id="storageOther"
+                      placeholder="e.g., 0"
+                      value={commitForm.storageOtherGB || ''}
+                      onChange={(e) => setCommitForm({ ...commitForm, storageOtherGB: e.target.value })}
+                      data-testid="input-storage-other"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="allocatedIps">Public IPs</Label>
+                <Input
+                  id="allocatedIps"
+                  placeholder="e.g., 5"
+                  value={commitForm.allocatedIps || ''}
+                  onChange={(e) => setCommitForm({ ...commitForm, allocatedIps: e.target.value })}
+                  data-testid="input-allocated-ips"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Input
+                  id="notes"
+                  placeholder="Optional notes about this commitment"
+                  value={commitForm.notes || ''}
+                  onChange={(e) => setCommitForm({ ...commitForm, notes: e.target.value })}
+                  data-testid="input-notes"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCommitDialogOpen(false)}
+              data-testid="button-cancel-commit"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveCommit}
+              disabled={saveCommitMutation.isPending}
+              data-testid="button-save-commit"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveCommitMutation.isPending ? 'Saving...' : 'Save Commit'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

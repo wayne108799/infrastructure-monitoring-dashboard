@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary } from "./lib/platforms";
 import { storage } from "./storage";
-import { insertPlatformSiteSchema, updatePlatformSiteSchema } from "@shared/schema";
+import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -333,6 +333,85 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/commit-levels
+   * Get all tenant commit levels
+   */
+  app.get('/api/commit-levels', async (req, res) => {
+    try {
+      const { siteId } = req.query;
+      let levels;
+      if (siteId && typeof siteId === 'string') {
+        levels = await storage.getCommitLevelsBySite(siteId);
+      } else {
+        levels = await storage.getAllCommitLevels();
+      }
+      res.json(levels);
+    } catch (error: any) {
+      log(`Error fetching commit levels: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/commit-levels/:siteId/:tenantId
+   * Get a specific tenant's commit level
+   */
+  app.get('/api/commit-levels/:siteId/:tenantId', async (req, res) => {
+    try {
+      const { siteId, tenantId } = req.params;
+      const level = await storage.getCommitLevel(siteId, tenantId);
+      if (level) {
+        res.json(level);
+      } else {
+        res.status(404).json({ error: 'Commit level not found' });
+      }
+    } catch (error: any) {
+      log(`Error fetching commit level: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/commit-levels
+   * Create or update a tenant commit level
+   */
+  app.post('/api/commit-levels', async (req, res) => {
+    try {
+      // Validate request body
+      const parsed = insertTenantCommitLevelSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid commit level data', details: parsed.error.errors });
+      }
+      
+      // Ensure required fields are present
+      if (!parsed.data.siteId || !parsed.data.tenantId || !parsed.data.tenantName) {
+        return res.status(400).json({ error: 'siteId, tenantId, and tenantName are required' });
+      }
+      
+      const level = await storage.upsertCommitLevel(parsed.data);
+      res.json(level);
+    } catch (error: any) {
+      log(`Error saving commit level: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * DELETE /api/commit-levels/:siteId/:tenantId
+   * Delete a tenant commit level
+   */
+  app.delete('/api/commit-levels/:siteId/:tenantId', async (req, res) => {
+    try {
+      const { siteId, tenantId } = req.params;
+      await storage.deleteCommitLevel(siteId, tenantId);
+      res.json({ success: true });
+    } catch (error: any) {
+      log(`Error deleting commit level: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * GET /api/export/tenants
    * Export all tenant allocations as CSV
    */
@@ -340,6 +419,13 @@ export async function registerRoutes(
     try {
       const { format = 'csv' } = req.query;
       const sites = platformRegistry.getAllSites();
+      
+      // Get all commit levels for enrichment
+      const allCommitLevels = await storage.getAllCommitLevels();
+      const commitLevelMap = new Map<string, typeof allCommitLevels[0]>();
+      for (const level of allCommitLevels) {
+        commitLevelMap.set(`${level.siteId}:${level.tenantId}`, level);
+      }
       
       interface ExportRow {
         timestamp: string;
@@ -360,6 +446,15 @@ export async function registerRoutes(
         tierLimitMB: number;
         tierUsedMB: number;
         allocatedIps: number;
+        commitVcpu: string;
+        commitGhz: string;
+        commitRamGB: string;
+        commitHpsGB: string;
+        commitSpsGB: string;
+        commitVvolGB: string;
+        commitOtherGB: string;
+        commitIps: string;
+        commitNotes: string;
       }
 
       const rows: ExportRow[] = [];
@@ -373,51 +468,53 @@ export async function registerRoutes(
           const tenants = await client.getTenantAllocations();
           
           for (const tenant of tenants) {
+            // Look up commit level for this tenant
+            const commitLevel = commitLevelMap.get(`${site.id}:${tenant.id}`);
+            
+            const baseRow = {
+              timestamp,
+              site: site.info.name,
+              siteLocation: site.info.location,
+              platform: site.platformType.toUpperCase(),
+              tenant: tenant.name,
+              status: tenant.status,
+              vmCount: tenant.vmCount,
+              runningVmCount: tenant.runningVmCount,
+              cpuAllocatedMHz: tenant.cpu.allocated,
+              cpuUsedMHz: tenant.cpu.used,
+              ramAllocatedMB: tenant.memory.allocated,
+              ramUsedMB: tenant.memory.used,
+              storageTotalMB: tenant.storage.limit,
+              storageUsedMB: tenant.storage.used,
+              allocatedIps: tenant.allocatedIps || 0,
+              commitVcpu: commitLevel?.vcpuCount || '',
+              commitGhz: commitLevel?.vcpuSpeedGhz || '',
+              commitRamGB: commitLevel?.ramGB || '',
+              commitHpsGB: commitLevel?.storageHpsGB || '',
+              commitSpsGB: commitLevel?.storageSpsGB || '',
+              commitVvolGB: commitLevel?.storageVvolGB || '',
+              commitOtherGB: commitLevel?.storageOtherGB || '',
+              commitIps: commitLevel?.allocatedIps || '',
+              commitNotes: commitLevel?.notes || '',
+            };
+            
             // If tenant has storage tiers, create a row for each tier
             if (tenant.storageTiers && tenant.storageTiers.length > 0) {
               for (const tier of tenant.storageTiers) {
                 rows.push({
-                  timestamp,
-                  site: site.info.name,
-                  siteLocation: site.info.location,
-                  platform: site.platformType.toUpperCase(),
-                  tenant: tenant.name,
-                  status: tenant.status,
-                  vmCount: tenant.vmCount,
-                  runningVmCount: tenant.runningVmCount,
-                  cpuAllocatedMHz: tenant.cpu.allocated,
-                  cpuUsedMHz: tenant.cpu.used,
-                  ramAllocatedMB: tenant.memory.allocated,
-                  ramUsedMB: tenant.memory.used,
-                  storageTotalMB: tenant.storage.limit,
-                  storageUsedMB: tenant.storage.used,
+                  ...baseRow,
                   storageTier: tier.name,
                   tierLimitMB: tier.limit,
                   tierUsedMB: tier.used,
-                  allocatedIps: tenant.allocatedIps || 0,
                 });
               }
             } else {
               // No tier breakdown, single row
               rows.push({
-                timestamp,
-                site: site.info.name,
-                siteLocation: site.info.location,
-                platform: site.platformType.toUpperCase(),
-                tenant: tenant.name,
-                status: tenant.status,
-                vmCount: tenant.vmCount,
-                runningVmCount: tenant.runningVmCount,
-                cpuAllocatedMHz: tenant.cpu.allocated,
-                cpuUsedMHz: tenant.cpu.used,
-                ramAllocatedMB: tenant.memory.allocated,
-                ramUsedMB: tenant.memory.used,
-                storageTotalMB: tenant.storage.limit,
-                storageUsedMB: tenant.storage.used,
+                ...baseRow,
                 storageTier: 'Default',
                 tierLimitMB: tenant.storage.limit,
                 tierUsedMB: tenant.storage.used,
-                allocatedIps: tenant.allocatedIps || 0,
               });
             }
           }
@@ -451,6 +548,15 @@ export async function registerRoutes(
         'Tier Limit (MB)',
         'Tier Used (MB)',
         'Allocated IPs',
+        'Commit vCPU',
+        'Commit GHz',
+        'Commit RAM (GB)',
+        'Commit HPS (GB)',
+        'Commit SPS (GB)',
+        'Commit VVol (GB)',
+        'Commit Other (GB)',
+        'Commit IPs',
+        'Commit Notes',
       ];
 
       const csvRows = [headers.join(',')];
@@ -475,6 +581,15 @@ export async function registerRoutes(
           row.tierLimitMB,
           row.tierUsedMB,
           row.allocatedIps,
+          row.commitVcpu,
+          row.commitGhz,
+          row.commitRamGB,
+          row.commitHpsGB,
+          row.commitSpsGB,
+          row.commitVvolGB,
+          row.commitOtherGB,
+          row.commitIps,
+          `"${row.commitNotes}"`,
         ].join(','));
       }
 

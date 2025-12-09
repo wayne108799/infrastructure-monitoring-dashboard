@@ -4,11 +4,15 @@ import {
   type PlatformSite, 
   type InsertPlatformSite, 
   type UpdatePlatformSite,
+  type TenantCommitLevel,
+  type InsertTenantCommitLevel,
+  type UpdateTenantCommitLevel,
   users,
-  platformSites 
+  platformSites,
+  tenantCommitLevels
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -22,6 +26,12 @@ export interface IStorage {
   createPlatformSite(site: InsertPlatformSite): Promise<PlatformSite>;
   updatePlatformSite(id: string, site: UpdatePlatformSite): Promise<PlatformSite | undefined>;
   deletePlatformSite(id: string): Promise<boolean>;
+  
+  getAllCommitLevels(): Promise<TenantCommitLevel[]>;
+  getCommitLevelsBySite(siteId: string): Promise<TenantCommitLevel[]>;
+  getCommitLevel(siteId: string, tenantId: string): Promise<TenantCommitLevel | undefined>;
+  upsertCommitLevel(level: InsertTenantCommitLevel): Promise<TenantCommitLevel>;
+  deleteCommitLevel(siteId: string, tenantId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -70,6 +80,49 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlatformSite(id: string): Promise<boolean> {
     const result = await db.delete(platformSites).where(eq(platformSites.id, id));
+    return true;
+  }
+
+  async getAllCommitLevels(): Promise<TenantCommitLevel[]> {
+    return db.select().from(tenantCommitLevels);
+  }
+
+  async getCommitLevelsBySite(siteId: string): Promise<TenantCommitLevel[]> {
+    return db.select().from(tenantCommitLevels).where(eq(tenantCommitLevels.siteId, siteId));
+  }
+
+  async getCommitLevel(siteId: string, tenantId: string): Promise<TenantCommitLevel | undefined> {
+    const [level] = await db.select().from(tenantCommitLevels).where(
+      and(
+        eq(tenantCommitLevels.siteId, siteId),
+        eq(tenantCommitLevels.tenantId, tenantId)
+      )
+    );
+    return level;
+  }
+
+  async upsertCommitLevel(level: InsertTenantCommitLevel): Promise<TenantCommitLevel> {
+    const existing = await this.getCommitLevel(level.siteId, level.tenantId);
+    if (existing) {
+      const [updated] = await db
+        .update(tenantCommitLevels)
+        .set({ ...level, updatedAt: new Date() })
+        .where(eq(tenantCommitLevels.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(tenantCommitLevels).values(level).returning();
+      return created;
+    }
+  }
+
+  async deleteCommitLevel(siteId: string, tenantId: string): Promise<boolean> {
+    await db.delete(tenantCommitLevels).where(
+      and(
+        eq(tenantCommitLevels.siteId, siteId),
+        eq(tenantCommitLevels.tenantId, tenantId)
+      )
+    );
     return true;
   }
 }

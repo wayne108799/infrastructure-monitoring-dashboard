@@ -424,3 +424,89 @@ export async function exportTenantsJSON(): Promise<any[]> {
   }
   return response.json();
 }
+
+// Tenant Commit Levels
+export interface TenantCommitLevel {
+  id: string;
+  siteId: string;
+  tenantId: string;
+  tenantName: string;
+  vcpuCount?: string;
+  vcpuSpeedGhz?: string;
+  ramGB?: string;
+  storageHpsGB?: string;
+  storageSpsGB?: string;
+  storageVvolGB?: string;
+  storageOtherGB?: string;
+  allocatedIps?: string;
+  notes?: string;
+  updatedAt?: string;
+}
+
+export interface InsertTenantCommitLevel {
+  siteId: string;
+  tenantId: string;
+  tenantName: string;
+  vcpuCount?: string;
+  vcpuSpeedGhz?: string;
+  ramGB?: string;
+  storageHpsGB?: string;
+  storageSpsGB?: string;
+  storageVvolGB?: string;
+  storageOtherGB?: string;
+  allocatedIps?: string;
+  notes?: string;
+}
+
+/**
+ * Get all commit levels, optionally filtered by site
+ */
+export async function fetchCommitLevels(siteId?: string): Promise<TenantCommitLevel[]> {
+  const url = siteId ? `/api/commit-levels?siteId=${siteId}` : '/api/commit-levels';
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('Failed to fetch commit levels');
+  }
+  return response.json();
+}
+
+/**
+ * Get a specific tenant's commit level
+ */
+export async function fetchCommitLevel(siteId: string, tenantId: string): Promise<TenantCommitLevel | null> {
+  const response = await fetch(`/api/commit-levels/${siteId}/${tenantId}`);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error('Failed to fetch commit level');
+  }
+  return response.json();
+}
+
+/**
+ * Save or update a tenant commit level
+ */
+export async function saveCommitLevel(level: InsertTenantCommitLevel): Promise<TenantCommitLevel> {
+  const response = await fetch('/api/commit-levels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(level),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to save commit level');
+  }
+  return response.json();
+}
+
+/**
+ * Delete a tenant commit level
+ */
+export async function deleteCommitLevel(siteId: string, tenantId: string): Promise<void> {
+  const response = await fetch(`/api/commit-levels/${siteId}/${tenantId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete commit level');
+  }
+}
