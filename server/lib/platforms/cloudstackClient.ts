@@ -248,6 +248,14 @@ export class CloudStackClient implements PlatformClient {
           cpu: summary.cpu,
           memory: summary.memory,
           storage: summary.storage,
+          storageTiers: [{
+            name: 'Primary Storage',
+            capacity: summary.storage.capacity,
+            limit: summary.storage.limit,
+            used: summary.storage.used,
+            available: summary.storage.available,
+            units: 'MB',
+          }],
           vmCount: summary.totalVms,
           runningVmCount: summary.runningVms,
           allocatedIps: summary.network.allocatedIps,
@@ -292,6 +300,9 @@ export class CloudStackClient implements PlatformClient {
       const memoryLimit = project.memorytotal || 0;
       const storageLimit = project.primarystoragetotal || 0;
 
+      const storageUsed = project.primarystorageavailable ? storageLimit - project.primarystorageavailable : 0;
+      const storageAvailable = project.primarystorageavailable || storageLimit;
+      
       return {
         id: project.id,
         name: project.name || project.displaytext || 'Unknown Project',
@@ -314,10 +325,18 @@ export class CloudStackClient implements PlatformClient {
         storage: {
           capacity: storageLimit,
           limit: storageLimit,
-          used: project.primarystorageavailable ? storageLimit - project.primarystorageavailable : 0,
-          available: project.primarystorageavailable || storageLimit,
+          used: storageUsed,
+          available: storageAvailable,
           units: 'MB',
         },
+        storageTiers: [{
+          name: 'Primary Storage',
+          capacity: storageLimit,
+          limit: storageLimit,
+          used: storageUsed,
+          available: storageAvailable,
+          units: 'MB',
+        }],
         vmCount: vms.length,
         runningVmCount,
         allocatedIps: project.iptotal || 0,

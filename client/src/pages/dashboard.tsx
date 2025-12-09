@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   fetchSites, 
   fetchSiteSummary, 
   fetchPlatforms,
+  exportTenantsCSV,
   getPlatformShortName,
   getPlatformColor,
   type Site, 
@@ -16,6 +18,7 @@ import {
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { 
   PieChart, 
   Pie, 
@@ -32,6 +35,27 @@ interface SiteData {
 
 export default function Dashboard() {
   const [platformFilter, setPlatformFilter] = useState<PlatformType | 'all'>('all');
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportTenantsCSV();
+      toast({
+        title: 'Export Complete',
+        description: 'Tenant data has been downloaded as CSV.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Export Failed',
+        description: error.message || 'Could not export tenant data.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
@@ -161,9 +185,24 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Infrastructure Overview</h1>
-        <p className="text-muted-foreground mt-1">Resource utilization across all virtualization platforms.</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Infrastructure Overview</h1>
+          <p className="text-muted-foreground mt-1">Resource utilization across all virtualization platforms.</p>
+        </div>
+        <Button 
+          onClick={handleExport} 
+          disabled={isExporting}
+          variant="outline"
+          data-testid="button-export"
+        >
+          {isExporting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          Export Tenants
+        </Button>
       </div>
 
       {/* Platform Filter */}

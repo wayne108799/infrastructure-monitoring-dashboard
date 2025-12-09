@@ -392,3 +392,35 @@ export async function testSiteConfigConnection(id: string): Promise<{ success: b
   });
   return response.json();
 }
+
+/**
+ * Export all tenant allocations as CSV
+ * Triggers file download
+ */
+export async function exportTenantsCSV(): Promise<void> {
+  const response = await fetch('/api/export/tenants');
+  if (!response.ok) {
+    throw new Error('Failed to export tenants');
+  }
+  
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `tenant-export-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+/**
+ * Export all tenant allocations as JSON
+ */
+export async function exportTenantsJSON(): Promise<any[]> {
+  const response = await fetch('/api/export/tenants?format=json');
+  if (!response.ok) {
+    throw new Error('Failed to export tenants');
+  }
+  return response.json();
+}

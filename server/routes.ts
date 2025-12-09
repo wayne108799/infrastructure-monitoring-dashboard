@@ -333,6 +333,164 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/export/tenants
+   * Export all tenant allocations as CSV
+   */
+  app.get('/api/export/tenants', async (req, res) => {
+    try {
+      const { format = 'csv' } = req.query;
+      const sites = platformRegistry.getAllSites();
+      
+      interface ExportRow {
+        timestamp: string;
+        site: string;
+        siteLocation: string;
+        platform: string;
+        tenant: string;
+        status: string;
+        vmCount: number;
+        runningVmCount: number;
+        cpuAllocatedMHz: number;
+        cpuUsedMHz: number;
+        ramAllocatedMB: number;
+        ramUsedMB: number;
+        storageTotalMB: number;
+        storageUsedMB: number;
+        storageTier: string;
+        tierLimitMB: number;
+        tierUsedMB: number;
+        allocatedIps: number;
+      }
+
+      const rows: ExportRow[] = [];
+      const timestamp = new Date().toISOString();
+
+      for (const site of sites) {
+        try {
+          const client = platformRegistry.getClient(site.id);
+          if (!client) continue;
+
+          const tenants = await client.getTenantAllocations();
+          
+          for (const tenant of tenants) {
+            // If tenant has storage tiers, create a row for each tier
+            if (tenant.storageTiers && tenant.storageTiers.length > 0) {
+              for (const tier of tenant.storageTiers) {
+                rows.push({
+                  timestamp,
+                  site: site.info.name,
+                  siteLocation: site.info.location,
+                  platform: site.platformType.toUpperCase(),
+                  tenant: tenant.name,
+                  status: tenant.status,
+                  vmCount: tenant.vmCount,
+                  runningVmCount: tenant.runningVmCount,
+                  cpuAllocatedMHz: tenant.cpu.allocated,
+                  cpuUsedMHz: tenant.cpu.used,
+                  ramAllocatedMB: tenant.memory.allocated,
+                  ramUsedMB: tenant.memory.used,
+                  storageTotalMB: tenant.storage.limit,
+                  storageUsedMB: tenant.storage.used,
+                  storageTier: tier.name,
+                  tierLimitMB: tier.limit,
+                  tierUsedMB: tier.used,
+                  allocatedIps: tenant.allocatedIps || 0,
+                });
+              }
+            } else {
+              // No tier breakdown, single row
+              rows.push({
+                timestamp,
+                site: site.info.name,
+                siteLocation: site.info.location,
+                platform: site.platformType.toUpperCase(),
+                tenant: tenant.name,
+                status: tenant.status,
+                vmCount: tenant.vmCount,
+                runningVmCount: tenant.runningVmCount,
+                cpuAllocatedMHz: tenant.cpu.allocated,
+                cpuUsedMHz: tenant.cpu.used,
+                ramAllocatedMB: tenant.memory.allocated,
+                ramUsedMB: tenant.memory.used,
+                storageTotalMB: tenant.storage.limit,
+                storageUsedMB: tenant.storage.used,
+                storageTier: 'Default',
+                tierLimitMB: tenant.storage.limit,
+                tierUsedMB: tenant.storage.used,
+                allocatedIps: tenant.allocatedIps || 0,
+              });
+            }
+          }
+        } catch (error: any) {
+          log(`Error fetching tenants for ${site.id}: ${error.message}`, 'routes');
+        }
+      }
+
+      if (format === 'json') {
+        res.json(rows);
+        return;
+      }
+
+      // Generate CSV
+      const headers = [
+        'Timestamp',
+        'Site',
+        'Location',
+        'Platform',
+        'Tenant',
+        'Status',
+        'VM Count',
+        'Running VMs',
+        'CPU Allocated (MHz)',
+        'CPU Used (MHz)',
+        'RAM Allocated (MB)',
+        'RAM Used (MB)',
+        'Storage Total (MB)',
+        'Storage Used (MB)',
+        'Storage Tier',
+        'Tier Limit (MB)',
+        'Tier Used (MB)',
+        'Allocated IPs',
+      ];
+
+      const csvRows = [headers.join(',')];
+      
+      for (const row of rows) {
+        csvRows.push([
+          row.timestamp,
+          `"${row.site}"`,
+          `"${row.siteLocation}"`,
+          row.platform,
+          `"${row.tenant}"`,
+          row.status,
+          row.vmCount,
+          row.runningVmCount,
+          row.cpuAllocatedMHz,
+          row.cpuUsedMHz,
+          row.ramAllocatedMB,
+          row.ramUsedMB,
+          row.storageTotalMB,
+          row.storageUsedMB,
+          `"${row.storageTier}"`,
+          row.tierLimitMB,
+          row.tierUsedMB,
+          row.allocatedIps,
+        ].join(','));
+      }
+
+      const csv = csvRows.join('\n');
+      const filename = `tenant-export-${new Date().toISOString().split('T')[0]}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } catch (error: any) {
+      log(`Error exporting tenants: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * GET /api/config/sites
    * Get all configured platform sites from database
    */

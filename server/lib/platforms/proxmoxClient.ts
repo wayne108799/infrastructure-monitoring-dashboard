@@ -295,6 +295,16 @@ export class ProxmoxClient implements PlatformClient {
           storageUsed += Math.round((storage.disk || 0) / (1024 * 1024));
         }
 
+        // Build storage tiers from node storages
+        const nodeTiers = nodeStorages.map(storage => ({
+          name: storage.storage || 'Unknown',
+          capacity: Math.round((storage.maxdisk || 0) / (1024 * 1024)),
+          limit: Math.round((storage.maxdisk || 0) / (1024 * 1024)),
+          used: Math.round((storage.disk || 0) / (1024 * 1024)),
+          available: Math.round(((storage.maxdisk || 0) - (storage.disk || 0)) / (1024 * 1024)),
+          units: 'MB',
+        }));
+
         allocations.push({
           id: node.id || node.node,
           name: node.node,
@@ -320,6 +330,14 @@ export class ProxmoxClient implements PlatformClient {
             available: storageCapacity - storageUsed,
             units: 'MB',
           },
+          storageTiers: nodeTiers.length > 0 ? nodeTiers : [{
+            name: 'Local Storage',
+            capacity: storageCapacity,
+            limit: storageCapacity,
+            used: storageUsed,
+            available: storageCapacity - storageUsed,
+            units: 'MB',
+          }],
           vmCount: nodeVms.length,
           runningVmCount,
         });

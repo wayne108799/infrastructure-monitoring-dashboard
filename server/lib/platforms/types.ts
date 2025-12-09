@@ -57,6 +57,7 @@ export interface TenantAllocation {
   cpu: ResourceMetrics;
   memory: ResourceMetrics;
   storage: StorageMetrics;
+  storageTiers?: StorageTier[];  // Breakdown by storage tier/profile
   vmCount: number;
   runningVmCount: number;
   allocatedIps?: number;

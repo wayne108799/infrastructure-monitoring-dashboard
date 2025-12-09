@@ -222,12 +222,25 @@ export class VcdAdapter implements PlatformClient {
   }
 
   private mapVdcToTenantAllocation(vdc: any): TenantAllocation {
-    // Calculate storage totals
+    // Calculate storage totals and build tier breakdown
     let storageCapacity = 0, storageUsed = 0;
+    const storageTiers: StorageTier[] = [];
+    
     if (vdc.storageProfiles && Array.isArray(vdc.storageProfiles)) {
       for (const profile of vdc.storageProfiles) {
-        storageCapacity += profile.limit || 0;
-        storageUsed += profile.used || 0;
+        const tierLimit = profile.limit || 0;
+        const tierUsed = profile.used || 0;
+        storageCapacity += tierLimit;
+        storageUsed += tierUsed;
+        
+        storageTiers.push({
+          name: profile.name || 'Unknown',
+          capacity: tierLimit,
+          limit: tierLimit,
+          used: tierUsed,
+          available: tierLimit - tierUsed,
+          units: 'MB',
+        });
       }
     }
 
@@ -259,6 +272,7 @@ export class VcdAdapter implements PlatformClient {
         available: storageCapacity - storageUsed,
         units: 'MB',
       },
+      storageTiers: storageTiers.sort((a, b) => a.name.localeCompare(b.name)),
       vmCount: vdc.vmResources?.vmCount || 0,
       runningVmCount: vdc.vmResources?.runningVmCount || 0,
       allocatedIps: vdc.ipAllocation?.totalIpCount || 0,
