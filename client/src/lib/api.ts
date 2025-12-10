@@ -576,3 +576,54 @@ export async function fetchVeeamSummary(): Promise<VeeamSummaryResponse> {
   }
   return response.json();
 }
+
+// Veeam ONE Configuration
+export interface VeeamConfig {
+  url: string;
+  username: string;
+  password: string;
+  name: string;
+  location: string;
+  isEnabled: boolean;
+}
+
+/**
+ * Fetch Veeam ONE configuration
+ */
+export async function fetchVeeamConfig(): Promise<VeeamConfig> {
+  const response = await fetch('/api/veeam/config');
+  if (!response.ok) {
+    throw new Error('Failed to fetch Veeam config');
+  }
+  return response.json();
+}
+
+/**
+ * Save Veeam ONE configuration
+ */
+export async function saveVeeamConfig(config: VeeamConfig): Promise<{ success: boolean; config: VeeamConfig }> {
+  const response = await fetch('/api/veeam/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to save Veeam config');
+  }
+  return response.json();
+}
+
+/**
+ * Test Veeam ONE connection
+ */
+export async function testVeeamConnection(config: { url: string; username: string; password: string }): Promise<{ success: boolean; message?: string; error?: string }> {
+  const response = await fetch('/api/veeam/test-connection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to test Veeam connection');
+  }
+  return response.json();
+}

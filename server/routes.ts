@@ -334,6 +334,86 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/veeam/config
+   * Get Veeam ONE configuration
+   */
+  app.get('/api/veeam/config', async (req, res) => {
+    try {
+      const configJson = await storage.getGlobalConfig('veeam_config');
+      if (configJson) {
+        res.json(JSON.parse(configJson));
+      } else {
+        res.json({
+          url: '',
+          username: '',
+          password: '',
+          name: 'Veeam ONE',
+          location: '',
+          isEnabled: false,
+        });
+      }
+    } catch (error: any) {
+      log(`Error fetching Veeam config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/veeam/config
+   * Save Veeam ONE configuration
+   */
+  app.post('/api/veeam/config', async (req, res) => {
+    try {
+      const { url, username, password, name, location, isEnabled } = req.body;
+      const config = { url, username, password, name, location, isEnabled };
+      await storage.setGlobalConfig('veeam_config', JSON.stringify(config));
+      
+      // Note: Veeam client will be initialized on next server restart
+      // For immediate effect, a server restart is required after saving config
+      log(`Veeam config saved. Restart server to apply changes.`, 'routes');
+      
+      res.json({ success: true, config });
+    } catch (error: any) {
+      log(`Error saving Veeam config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/veeam/test-connection
+   * Test Veeam ONE connection
+   */
+  app.post('/api/veeam/test-connection', async (req, res) => {
+    try {
+      const { url, username, password } = req.body;
+      
+      if (!url || !username || !password) {
+        return res.status(400).json({ success: false, error: 'URL, username, and password are required' });
+      }
+
+      const testClient = new VeeamOneClient({
+        id: 'test',
+        url,
+        username,
+        password,
+        name: 'Test',
+        location: '',
+      });
+      
+      const isConnected = await testClient.testConnection();
+      
+      if (isConnected) {
+        res.json({ success: true, message: 'Successfully connected to Veeam ONE' });
+      } else {
+        res.json({ success: false, error: 'Could not connect to Veeam ONE' });
+      }
+    } catch (error: any) {
+      log(`Error testing Veeam connection: ${error.message}`, 'routes');
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  /**
    * GET /api/veeam/summary
    * Get Veeam ONE backup summary across all Veeam sites
    */

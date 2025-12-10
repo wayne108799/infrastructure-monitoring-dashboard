@@ -7,9 +7,11 @@ import {
   type TenantCommitLevel,
   type InsertTenantCommitLevel,
   type UpdateTenantCommitLevel,
+  type GlobalConfig,
   users,
   platformSites,
-  tenantCommitLevels
+  tenantCommitLevels,
+  globalConfig
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -32,6 +34,9 @@ export interface IStorage {
   getCommitLevel(siteId: string, tenantId: string): Promise<TenantCommitLevel | undefined>;
   upsertCommitLevel(level: InsertTenantCommitLevel): Promise<TenantCommitLevel>;
   deleteCommitLevel(siteId: string, tenantId: string): Promise<boolean>;
+  
+  getGlobalConfig(key: string): Promise<string | null>;
+  setGlobalConfig(key: string, value: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -124,6 +129,22 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return true;
+  }
+
+  async getGlobalConfig(key: string): Promise<string | null> {
+    const [config] = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
+    return config?.value ?? null;
+  }
+
+  async setGlobalConfig(key: string, value: string): Promise<void> {
+    const [existing] = await db.select().from(globalConfig).where(eq(globalConfig.key, key));
+    if (existing) {
+      await db.update(globalConfig)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(globalConfig.key, key));
+    } else {
+      await db.insert(globalConfig).values({ key, value });
+    }
   }
 }
 

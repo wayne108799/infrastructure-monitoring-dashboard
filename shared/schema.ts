@@ -77,3 +77,13 @@ export const updateTenantCommitLevelSchema = insertTenantCommitLevelSchema.parti
 export type InsertTenantCommitLevel = z.infer<typeof insertTenantCommitLevelSchema>;
 export type UpdateTenantCommitLevel = z.infer<typeof updateTenantCommitLevelSchema>;
 export type TenantCommitLevel = typeof tenantCommitLevels.$inferSelect;
+
+// Global configuration (for Veeam ONE, etc.)
+export const globalConfig = pgTable("global_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type GlobalConfig = typeof globalConfig.$inferSelect;
