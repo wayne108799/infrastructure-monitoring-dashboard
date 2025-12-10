@@ -257,6 +257,8 @@ export function getPlatformDisplayName(type: PlatformType): string {
       return 'Apache CloudStack';
     case 'proxmox':
       return 'Proxmox VE';
+    case 'veeam':
+      return 'Veeam ONE';
     default:
       return type;
   }
@@ -273,6 +275,8 @@ export function getPlatformShortName(type: PlatformType): string {
       return 'CloudStack';
     case 'proxmox':
       return 'Proxmox';
+    case 'veeam':
+      return 'Veeam';
     default:
       return type;
   }
@@ -289,6 +293,8 @@ export function getPlatformColor(type: PlatformType): string {
       return '#F68D2E'; // CloudStack orange
     case 'proxmox':
       return '#E57000'; // Proxmox orange
+    case 'veeam':
+      return '#00B336'; // Veeam green
     default:
       return '#6B7280';
   }

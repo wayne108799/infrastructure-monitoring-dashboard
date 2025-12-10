@@ -46,6 +46,8 @@ function getPlatformIcon(type: PlatformType) {
       return <Server className="h-5 w-5" />;
     case 'proxmox':
       return <HardDrive className="h-5 w-5" />;
+    case 'veeam':
+      return <HardDrive className="h-5 w-5" />;
     default:
       return <Server className="h-5 w-5" />;
   }
@@ -209,6 +211,9 @@ export default function Settings() {
       config.username = formData.username;
       config.password = formData.password;
       config.realm = formData.realm;
+    } else if (formData.platformType === 'veeam') {
+      config.username = formData.username;
+      config.password = formData.password;
     }
 
     if (editingSite) {
@@ -358,6 +363,39 @@ export default function Settings() {
             </div>
           </>
         );
+      case 'veeam':
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  data-testid="input-username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="administrator"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  data-testid="input-password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="********"
+                  required={!editingSite}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Veeam ONE REST API runs on port 1239 by default. Include the port in your URL.
+            </p>
+          </>
+        );
       default:
         return null;
     }
@@ -393,6 +431,7 @@ export default function Settings() {
               <SelectItem value="vcd">VMware Cloud Director</SelectItem>
               <SelectItem value="cloudstack">Apache CloudStack</SelectItem>
               <SelectItem value="proxmox">Proxmox VE</SelectItem>
+              <SelectItem value="veeam">Veeam ONE</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -508,7 +547,7 @@ export default function Settings() {
           <CardHeader>
             <CardTitle>Platform Connections</CardTitle>
             <CardDescription>
-              Manage connections to VMware Cloud Director, Apache CloudStack, and Proxmox VE platforms.
+              Manage connections to VMware Cloud Director, Apache CloudStack, Proxmox VE, and Veeam ONE platforms.
             </CardDescription>
           </CardHeader>
           <CardContent>
