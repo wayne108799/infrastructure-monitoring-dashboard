@@ -211,9 +211,6 @@ export default function Settings() {
       config.username = formData.username;
       config.password = formData.password;
       config.realm = formData.realm;
-    } else if (formData.platformType === 'veeam') {
-      config.username = formData.username;
-      config.password = formData.password;
     }
 
     if (editingSite) {
@@ -363,39 +360,6 @@ export default function Settings() {
             </div>
           </>
         );
-      case 'veeam':
-        return (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  data-testid="input-username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  placeholder="administrator"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  data-testid="input-password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="********"
-                  required={!editingSite}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Veeam ONE REST API runs on port 1239 by default. Include the port in your URL.
-            </p>
-          </>
-        );
       default:
         return null;
     }
@@ -431,7 +395,6 @@ export default function Settings() {
               <SelectItem value="vcd">VMware Cloud Director</SelectItem>
               <SelectItem value="cloudstack">Apache CloudStack</SelectItem>
               <SelectItem value="proxmox">Proxmox VE</SelectItem>
-              <SelectItem value="veeam">Veeam ONE</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -547,7 +510,7 @@ export default function Settings() {
           <CardHeader>
             <CardTitle>Platform Connections</CardTitle>
             <CardDescription>
-              Manage connections to VMware Cloud Director, Apache CloudStack, Proxmox VE, and Veeam ONE platforms.
+              Manage connections to VMware Cloud Director, Apache CloudStack, and Proxmox VE platforms.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -682,6 +645,39 @@ export default function Settings() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-8">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div
+                className="p-2 rounded-lg"
+                style={{ backgroundColor: '#00B33620', color: '#00B336' }}
+              >
+                <HardDrive className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Veeam ONE Integration</CardTitle>
+                <CardDescription>
+                  Monitor backup coverage across all VCD sites with a single Veeam ONE instance.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted rounded-lg p-4 font-mono text-sm">
+              <p className="text-muted-foreground mb-2"># Veeam ONE Configuration (via environment variables)</p>
+              <p>VEEAM_SITES=VEEAM1</p>
+              <p>VEEAM_VEEAM1_URL=https://veeam-one.example.com:1239</p>
+              <p>VEEAM_VEEAM1_USERNAME=administrator</p>
+              <p>VEEAM_VEEAM1_PASSWORD=your-password</p>
+              <p>VEEAM_VEEAM1_NAME=Veeam ONE Server</p>
+              <p>VEEAM_VEEAM1_LOCATION=US-East</p>
+            </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              Veeam ONE REST API runs on port 1239 by default. The backup metrics will appear in the Report page under the "Backups" tab.
+            </p>
           </CardContent>
         </Card>
 
