@@ -4,11 +4,12 @@ This guide covers deploying the Multi-Platform Infrastructure Monitoring Dashboa
 
 ## Prerequisites
 
-- **Ubuntu 22.04 LTS** or **Ubuntu 24.04 LTS** (both fully supported)
+- **Ubuntu 24.04 LTS** (recommended) or **Ubuntu 22.04 LTS**
 - Root or sudo access
-- Network access to your VCD, CloudStack, and/or Proxmox systems
+- Minimum 2 GB RAM, 20 GB disk space
+- Network access to your VCD, CloudStack, Proxmox, and/or Veeam ONE systems
 
-> **Note:** Ubuntu 24.04 LTS includes PostgreSQL 16 by default and is fully compatible with all components.
+> **Recommended:** Ubuntu 24.04 LTS includes PostgreSQL 16, improved security features, and long-term support until 2034.
 
 ---
 
@@ -326,5 +327,96 @@ Once deployed, you can add platform connections in two ways:
 ### Option 1: Environment Variables
 Edit `/opt/monitoring-dashboard/.env` and add your platform configurations, then restart the service.
 
-### Option 2: Settings UI
+### Option 2: Settings UI (Recommended)
 Navigate to `http://your-server/settings` in your browser and use the web interface to add, edit, and test platform connections.
+
+---
+
+## Configuring Veeam ONE Integration
+
+Veeam ONE provides backup monitoring across all your VCD sites from a single instance.
+
+### Via Settings UI (Recommended)
+1. Navigate to `http://your-server/settings`
+2. Scroll to the **Veeam ONE Integration** section
+3. Enter your Veeam ONE server details:
+   - **API URL**: `https://veeam-one-server.example.com:1239`
+   - **Username**: Veeam ONE administrator account
+   - **Password**: Account password
+   - **Display Name**: Friendly name for the dashboard
+   - **Location**: Physical location for reference
+4. Click **Test Connection** to verify connectivity
+5. Click **Save Configuration** to persist settings
+6. Restart the application service to apply changes
+
+### Via Environment Variables
+Add the following to your `.env` file:
+
+```bash
+# Veeam ONE Configuration
+VEEAM_SITES=VEEAM1
+VEEAM_VEEAM1_URL=https://veeam-one.example.com:1239
+VEEAM_VEEAM1_USERNAME=administrator
+VEEAM_VEEAM1_PASSWORD=your_password
+VEEAM_VEEAM1_NAME=Veeam ONE Server
+VEEAM_VEEAM1_LOCATION=US-East
+```
+
+> **Note:** Veeam ONE REST API uses port 1239 by default. Ensure this port is accessible from your dashboard server.
+
+---
+
+## Quick Start for Ubuntu 24.04 LTS
+
+For a fast deployment on a fresh Ubuntu 24.04 LTS server:
+
+```bash
+# 1. Install prerequisites
+sudo apt update && sudo apt upgrade -y
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs postgresql postgresql-contrib nginx git
+
+# 2. Setup database
+sudo -u postgres psql -c "CREATE USER monitoring WITH PASSWORD 'secure_password';"
+sudo -u postgres psql -c "CREATE DATABASE monitoring_dashboard OWNER monitoring;"
+
+# 3. Clone and build
+sudo mkdir -p /opt/monitoring-dashboard
+sudo chown $USER:$USER /opt/monitoring-dashboard
+cd /opt/monitoring-dashboard
+git clone https://github.com/YOUR_USERNAME/infrastructure-monitoring-dashboard.git .
+
+# 4. Configure
+echo "DATABASE_URL=postgresql://monitoring:secure_password@localhost:5432/monitoring_dashboard" > .env
+npm install
+npm run db:push
+npm run build
+
+# 5. Start service (see Step 6 above for systemd configuration)
+```
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Ubuntu 24.04 LTS                      │
+├─────────────────────────────────────────────────────────┤
+│  ┌─────────┐    ┌──────────────────┐    ┌───────────┐  │
+│  │  Nginx  │───▶│  Node.js App     │───▶│PostgreSQL │  │
+│  │  :80    │    │  :5000           │    │  :5432    │  │
+│  └─────────┘    └──────────────────┘    └───────────┘  │
+│       │                  │                              │
+│       │                  ▼                              │
+│       │         ┌──────────────────┐                   │
+│       │         │ Platform APIs    │                   │
+│       │         │ • VCD :443       │                   │
+│       │         │ • CloudStack     │                   │
+│       │         │ • Proxmox :8006  │                   │
+│       │         │ • Veeam :1239    │                   │
+│       │         └──────────────────┘                   │
+│       ▼                                                 │
+│  Users access via browser                               │
+└─────────────────────────────────────────────────────────┘
+```

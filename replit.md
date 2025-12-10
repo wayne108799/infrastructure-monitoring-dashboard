@@ -100,6 +100,15 @@ On the Details page, each tenant card has a "Set Commit" button to define minimu
 These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
 ## Recent Changes
+- **Veeam ONE UI Configuration**: Settings page now includes dedicated form to configure Veeam ONE
+  - Enter URL, username, password, display name, and location
+  - Test connection button validates connectivity before saving
+  - Configuration stored in database (globalConfig table)
+  - Endpoints: `GET/POST /api/veeam/config`, `POST /api/veeam/config/test`
+- **Deployment Documentation**: Updated DEPLOYMENT.md for Ubuntu 24.04 LTS
+  - Quick start guide for fresh installations
+  - Architecture diagram with all platform connections
+  - Veeam ONE configuration instructions
 - **Provision Page**: New auto-provisioning feature at `/provision` to create VCD resources
   - Creates Organization, Org VDC, Edge Gateway, and SNAT rules in a single workflow
   - Form-based interface for selecting target VCD site and configuring resources
