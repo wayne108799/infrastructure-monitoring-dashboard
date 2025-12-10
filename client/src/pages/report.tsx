@@ -7,18 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle, Database, HardDrive } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { 
   fetchSites, 
   fetchCommitLevels,
+  fetchVeeamSummary,
   exportTenantsCSV,
   getPlatformShortName,
   getPlatformColor,
   type Site,
-  type TenantCommitLevel
+  type TenantCommitLevel,
+  type VeeamSummaryResponse
 } from '@/lib/api';
+import { Progress } from '@/components/ui/progress';
 
 export default function Report() {
   const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -44,6 +47,12 @@ export default function Report() {
       return response.json() as Promise<any[]>;
     },
     staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: veeamData, isLoading: veeamLoading } = useQuery({
+    queryKey: ['veeamSummary'],
+    queryFn: () => fetchVeeamSummary(),
+    staleTime: 5 * 60 * 1000,
   });
 
   const commitLevelMap = new Map<string, TenantCommitLevel>();
@@ -245,6 +254,15 @@ export default function Report() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="backups" className="flex items-center gap-2" data-testid="tab-backups">
+              <Database className="h-4 w-4" />
+              Backups
+              {veeamData?.configured && veeamData?.totals && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {veeamData.totals.protectionPercentage}%
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="allocations">
@@ -402,6 +420,160 @@ export default function Report() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="backups">
+            <div className="grid gap-6">
+              {veeamLoading ? (
+                <div className="flex items-center justify-center h-48">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p className="mt-2 text-sm text-muted-foreground">Loading backup data...</p>
+                  </div>
+                </div>
+              ) : !veeamData?.configured ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <Alert>
+                      <Database className="h-4 w-4" />
+                      <AlertTitle>Veeam ONE Not Configured</AlertTitle>
+                      <AlertDescription>
+                        To view backup metrics, configure Veeam ONE connection in Settings. 
+                        Add environment variables: VEEAM_SITES, VEEAM_[SITE]_URL, VEEAM_[SITE]_USERNAME, VEEAM_[SITE]_PASSWORD
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Protected VMs</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">{veeamData.totals.protectedVmCount}</div>
+                        <Progress 
+                          value={veeamData.totals.protectionPercentage} 
+                          className="mt-2 h-2"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {veeamData.totals.protectionPercentage}% of {veeamData.totals.totalVmCount} VMs
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Unprotected VMs</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold ${veeamData.totals.unprotectedVmCount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {veeamData.totals.unprotectedVmCount}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          VMs without backup protection
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Repository Capacity</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{veeamData.totals.repositoryCapacityGB.toLocaleString()} GB</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Total backup storage capacity
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Storage Used</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{veeamData.totals.repositoryUsedGB.toLocaleString()} GB</div>
+                        <Progress 
+                          value={veeamData.totals.repositoryCapacityGB > 0 
+                            ? (veeamData.totals.repositoryUsedGB / veeamData.totals.repositoryCapacityGB) * 100 
+                            : 0
+                          } 
+                          className="mt-2 h-2"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {veeamData.totals.repositoryFreeGB.toLocaleString()} GB free
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {veeamData.sites.map((site) => (
+                    <Card key={site.siteId}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <HardDrive className="h-5 w-5" />
+                          {site.siteName}
+                          <Badge variant="outline" className="ml-2">{site.siteLocation}</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Protected</p>
+                            <p className="text-lg font-semibold text-green-600">{site.backup.protectedVmCount} VMs</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Unprotected</p>
+                            <p className={`text-lg font-semibold ${site.backup.unprotectedVmCount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                              {site.backup.unprotectedVmCount} VMs
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Protection Rate</p>
+                            <p className="text-lg font-semibold">{site.backup.protectionPercentage}%</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total VMs</p>
+                            <p className="text-lg font-semibold">{site.backup.totalVmCount}</p>
+                          </div>
+                        </div>
+
+                        {site.repositories.length > 0 && (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Repository</TableHead>
+                                <TableHead className="text-right">Capacity (GB)</TableHead>
+                                <TableHead className="text-right">Used (GB)</TableHead>
+                                <TableHead className="text-right">Free (GB)</TableHead>
+                                <TableHead className="text-right">Usage</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {site.repositories.map((repo) => (
+                                <TableRow key={repo.id}>
+                                  <TableCell className="font-medium">{repo.name}</TableCell>
+                                  <TableCell className="text-right font-mono">{repo.capacityGB.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right font-mono">{repo.usedSpaceGB.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right font-mono">{repo.freeSpaceGB.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Progress value={repo.usagePercentage} className="w-16 h-2" />
+                                      <span className={`font-mono text-sm ${repo.usagePercentage > 85 ? 'text-red-600' : ''}`}>
+                                        {repo.usagePercentage}%
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       )}

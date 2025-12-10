@@ -21,6 +21,7 @@ The dashboard displays resource availability, usage, and allocation metrics for:
   - `server/lib/platforms/proxmoxClient.ts` - Proxmox with ticket-based auth
   - `server/lib/platforms/index.ts` - Platform registry and factory
 - **Routes**: `server/routes.ts` - REST API endpoints for all platforms
+  - `server/lib/platforms/veeamClient.ts` - Veeam ONE with OAuth 2.0 token auth
 
 ### Frontend (`client/`)
 - **Dashboard**: `client/src/pages/dashboard.tsx` - Overview with pie charts per site
@@ -61,6 +62,16 @@ PROXMOX_PVE1_NAME=Proxmox Cluster 1
 PROXMOX_PVE1_LOCATION=EU-Central
 ```
 
+### Veeam ONE Sites
+```
+VEEAM_SITES=VEEAM1
+VEEAM_VEEAM1_URL=https://veeam-one.example.com:1239
+VEEAM_VEEAM1_USERNAME=administrator
+VEEAM_VEEAM1_PASSWORD=secret
+VEEAM_VEEAM1_NAME=Veeam ONE Server
+VEEAM_VEEAM1_LOCATION=US-East
+```
+
 ## API Endpoints
 
 - `GET /api/platforms` - List available platform types
@@ -75,6 +86,8 @@ PROXMOX_PVE1_LOCATION=EU-Central
 - `POST /api/commit-levels` - Create/update tenant commit level
 - `DELETE /api/commit-levels/:siteId/:tenantId` - Delete tenant commit level
 - `GET /api/export/tenants` - Export all tenants as CSV (includes commit levels)
+- `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
+- `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
 
 ## Minimum Commit Levels
 On the Details page, each tenant card has a "Set Commit" button to define minimum resource commitments:

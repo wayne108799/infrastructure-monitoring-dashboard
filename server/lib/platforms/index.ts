@@ -3,11 +3,13 @@ import type { PlatformClient, PlatformConfig, PlatformType } from './types';
 import { VcdAdapter } from './vcdAdapter';
 import { CloudStackClient } from './cloudstackClient';
 import { ProxmoxClient } from './proxmoxClient';
+import { VeeamOneClient } from './veeamClient';
 
 export * from './types';
 export { VcdAdapter } from './vcdAdapter';
 export { CloudStackClient } from './cloudstackClient';
 export { ProxmoxClient } from './proxmoxClient';
+export { VeeamOneClient } from './veeamClient';
 
 /**
  * Platform Client Factory
@@ -21,6 +23,15 @@ export function createPlatformClient(config: PlatformConfig): PlatformClient {
       return new CloudStackClient(config);
     case 'proxmox':
       return new ProxmoxClient(config);
+    case 'veeam':
+      return new VeeamOneClient({
+        id: config.id,
+        name: config.name,
+        location: config.location,
+        url: config.url,
+        username: config.username,
+        password: config.password,
+      });
     default:
       throw new Error(`Unknown platform type: ${config.type}`);
   }
@@ -49,6 +60,9 @@ export class PlatformRegistry {
     
     // Initialize Proxmox sites
     this.initializePlatformSites('proxmox', 'PROXMOX');
+    
+    // Initialize Veeam ONE sites
+    this.initializePlatformSites('veeam', 'VEEAM');
   }
 
   private initializePlatformSites(platformType: PlatformType, envPrefix: string): void {

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { log } from "./index";
-import { platformRegistry, type PlatformType, type SiteSummary } from "./lib/platforms";
+import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
 
@@ -68,7 +68,8 @@ export async function registerRoutes(
         type,
         name: type === 'vcd' ? 'VMware Cloud Director' : 
               type === 'cloudstack' ? 'Apache CloudStack' : 
-              type === 'proxmox' ? 'Proxmox VE' : type,
+              type === 'proxmox' ? 'Proxmox VE' : 
+              type === 'veeam' ? 'Veeam ONE' : type,
         siteCount: sites.filter(s => s.platformType === type).length,
       }));
 
@@ -328,6 +329,103 @@ export async function registerRoutes(
       res.json({ totals, sites: summaries });
     } catch (error: any) {
       log(`Error fetching aggregated summary: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/veeam/summary
+   * Get Veeam ONE backup summary across all Veeam sites
+   */
+  app.get('/api/veeam/summary', async (req, res) => {
+    try {
+      const veeamClients = platformRegistry.getClientsByType('veeam');
+      
+      if (veeamClients.length === 0) {
+        return res.json({
+          configured: false,
+          message: 'No Veeam ONE sites configured',
+          sites: [],
+          totals: {
+            protectedVmCount: 0,
+            unprotectedVmCount: 0,
+            totalVmCount: 0,
+            protectionPercentage: 0,
+            repositoryCapacityGB: 0,
+            repositoryUsedGB: 0,
+            repositoryFreeGB: 0,
+          },
+        });
+      }
+
+      const summaries = [];
+      
+      for (const client of veeamClients) {
+        try {
+          const veeamClient = client as VeeamOneClient;
+          const summary = await veeamClient.getVeeamSummary();
+          const siteInfo = client.getSiteInfo();
+          summaries.push({
+            ...summary,
+            siteId: siteInfo.id,
+            siteName: siteInfo.name,
+            siteLocation: siteInfo.location,
+          });
+        } catch (error: any) {
+          log(`Error fetching Veeam summary for ${client.getSiteInfo().id}: ${error.message}`, 'routes');
+        }
+      }
+
+      const totals = {
+        protectedVmCount: summaries.reduce((sum, s) => sum + s.backup.protectedVmCount, 0),
+        unprotectedVmCount: summaries.reduce((sum, s) => sum + s.backup.unprotectedVmCount, 0),
+        totalVmCount: summaries.reduce((sum, s) => sum + s.backup.totalVmCount, 0),
+        protectionPercentage: 0,
+        repositoryCapacityGB: summaries.reduce((sum, s) => sum + s.totalRepositoryCapacityGB, 0),
+        repositoryUsedGB: summaries.reduce((sum, s) => sum + s.totalRepositoryUsedGB, 0),
+        repositoryFreeGB: summaries.reduce((sum, s) => sum + s.totalRepositoryFreeGB, 0),
+      };
+
+      if (totals.totalVmCount > 0) {
+        totals.protectionPercentage = Math.round((totals.protectedVmCount / totals.totalVmCount) * 100);
+      }
+
+      res.json({
+        configured: true,
+        sites: summaries,
+        totals,
+      });
+    } catch (error: any) {
+      log(`Error fetching Veeam summary: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/veeam/sites/:siteId
+   * Get Veeam ONE backup details for a specific site
+   */
+  app.get('/api/veeam/sites/:siteId', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = platformRegistry.getClient(`veeam:${siteId}`) || platformRegistry.getClientBySiteId(siteId);
+
+      if (!client || client.getPlatformType() !== 'veeam') {
+        return res.status(404).json({ error: `Veeam site not found: ${siteId}` });
+      }
+
+      const veeamClient = client as VeeamOneClient;
+      const summary = await veeamClient.getVeeamSummary();
+      const siteInfo = client.getSiteInfo();
+
+      res.json({
+        ...summary,
+        siteId: siteInfo.id,
+        siteName: siteInfo.name,
+        siteLocation: siteInfo.location,
+      });
+    } catch (error: any) {
+      log(`Error fetching Veeam details for ${req.params.siteId}: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

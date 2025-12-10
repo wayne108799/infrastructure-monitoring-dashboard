@@ -1,6 +1,6 @@
 // API client for multi-platform infrastructure monitoring
 
-export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox';
+export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox' | 'veeam';
 
 export interface Site {
   id: string;
@@ -513,4 +513,60 @@ export async function deleteCommitLevel(siteId: string, tenantId: string): Promi
   if (!response.ok) {
     throw new Error('Failed to delete commit level');
   }
+}
+
+// Veeam ONE types
+export interface VeeamBackupMetrics {
+  protectedVmCount: number;
+  unprotectedVmCount: number;
+  totalVmCount: number;
+  protectionPercentage: number;
+  lastBackupDate?: string;
+}
+
+export interface VeeamRepository {
+  id: string;
+  name: string;
+  capacityGB: number;
+  usedSpaceGB: number;
+  freeSpaceGB: number;
+  usagePercentage: number;
+}
+
+export interface VeeamSiteSummary {
+  siteId: string;
+  siteName: string;
+  siteLocation: string;
+  platformType: 'veeam';
+  backup: VeeamBackupMetrics;
+  repositories: VeeamRepository[];
+  totalRepositoryCapacityGB: number;
+  totalRepositoryUsedGB: number;
+  totalRepositoryFreeGB: number;
+}
+
+export interface VeeamSummaryResponse {
+  configured: boolean;
+  message?: string;
+  sites: VeeamSiteSummary[];
+  totals: {
+    protectedVmCount: number;
+    unprotectedVmCount: number;
+    totalVmCount: number;
+    protectionPercentage: number;
+    repositoryCapacityGB: number;
+    repositoryUsedGB: number;
+    repositoryFreeGB: number;
+  };
+}
+
+/**
+ * Fetch Veeam ONE backup summary
+ */
+export async function fetchVeeamSummary(): Promise<VeeamSummaryResponse> {
+  const response = await fetch('/api/veeam/summary');
+  if (!response.ok) {
+    throw new Error('Failed to fetch Veeam summary');
+  }
+  return response.json();
 }
