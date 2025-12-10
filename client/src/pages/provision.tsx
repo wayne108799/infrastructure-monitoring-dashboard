@@ -378,12 +378,14 @@ export default function Provision() {
                           <SelectValue placeholder="Select storage profile" />
                         </SelectTrigger>
                         <SelectContent>
-                          {provisioningResources?.storageProfiles?.map((profile: any) => (
-                            <SelectItem key={profile.id} value={profile.id}>
-                              {profile.name}
-                            </SelectItem>
-                          )) || (
-                            <SelectItem value="" disabled>
+                          {provisioningResources?.storageProfiles?.length > 0 ? (
+                            provisioningResources.storageProfiles.map((profile: any) => (
+                              <SelectItem key={profile.id} value={profile.id}>
+                                {profile.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="_placeholder" disabled>
                               {resourcesLoading ? 'Loading...' : 'Select a site first'}
                             </SelectItem>
                           )}
@@ -448,12 +450,14 @@ export default function Provision() {
                       <SelectValue placeholder="Select external network" />
                     </SelectTrigger>
                     <SelectContent>
-                      {provisioningResources?.externalNetworks?.map((network: ExternalNetwork) => (
-                        <SelectItem key={network.id} value={network.id}>
-                          {network.name}
-                        </SelectItem>
-                      )) || (
-                        <SelectItem value="" disabled>
+                      {provisioningResources?.externalNetworks?.length > 0 ? (
+                        provisioningResources.externalNetworks.map((network: ExternalNetwork) => (
+                          <SelectItem key={network.id} value={network.id}>
+                            {network.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="_placeholder" disabled>
                           {resourcesLoading ? 'Loading...' : 'Select a site first'}
                         </SelectItem>
                       )}
