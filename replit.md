@@ -87,6 +87,14 @@ On the Details page, each tenant card has a "Set Commit" button to define minimu
 These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
 ## Recent Changes
+- **Provision Page**: New auto-provisioning feature at `/provision` to create VCD resources
+  - Creates Organization, Org VDC, Edge Gateway, and SNAT rules in a single workflow
+  - Form-based interface for selecting target VCD site and configuring resources
+  - Automatic SNAT rule creation for outbound internet access
+  - Endpoints: `GET /api/sites/:siteId/provisioning-resources`, `POST /api/sites/:siteId/provision`
+- **Report Page**: Now shows "used" resource values instead of "allocated" limits
+  - vCPU calculated from used MHz / 2800
+  - RAM and storage show actual consumption by running VMs
 - **Storage Capacity Fix**: Now correctly retrieves Provider VDC storage capacity from vCenter
   - Reads `capacityTotal` from Provider VDC storage profiles (in KB, converted to MB)
   - Shows actual physical storage capacity vs allocated limits (can show overcommitment)

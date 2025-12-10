@@ -768,5 +768,159 @@ export async function registerRoutes(
     }
   });
 
+  /**
+   * GET /api/sites/:siteId/provisioning-resources
+   * Get available resources for provisioning (Provider VDCs, storage profiles, external networks)
+   */
+  app.get('/api/sites/:siteId/provisioning-resources', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = platformRegistry.getClient(siteId);
+      
+      if (!client) {
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
+      }
+
+      if (client.getPlatformType() !== 'vcd') {
+        return res.status(400).json({ error: 'Provisioning is only supported for VCD sites' });
+      }
+
+      const vcdClient = (client as any).vcdClient;
+      if (!vcdClient) {
+        return res.status(500).json({ error: 'VCD client not available' });
+      }
+
+      const resources = await vcdClient.getProvisioningResources();
+      res.json(resources);
+    } catch (error: any) {
+      log(`Error fetching provisioning resources: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/sites/:siteId/provision
+   * Provision new VCD resources (Org, Org VDC, Edge Gateway, NAT rules)
+   */
+  app.post('/api/sites/:siteId/provision', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const client = platformRegistry.getClient(siteId);
+      
+      if (!client) {
+        return res.status(404).json({ error: `Site not found: ${siteId}` });
+      }
+
+      if (client.getPlatformType() !== 'vcd') {
+        return res.status(400).json({ error: 'Provisioning is only supported for VCD sites' });
+      }
+
+      const vcdClient = (client as any).vcdClient;
+      if (!vcdClient) {
+        return res.status(500).json({ error: 'VCD client not available' });
+      }
+
+      const {
+        orgName,
+        orgFullName,
+        orgDescription,
+        vdcName,
+        allocationModel,
+        cpuAllocatedMHz,
+        cpuLimitMHz,
+        memoryAllocatedMB,
+        memoryLimitMB,
+        storageProfileName,
+        storageLimitMB,
+        networkQuota,
+        edgeGatewayName,
+        externalNetworkId,
+        primaryIpAddress,
+        internalSubnet,
+      } = req.body;
+
+      if (!orgName || !vdcName) {
+        return res.status(400).json({ error: 'orgName and vdcName are required' });
+      }
+
+      log(`Starting provisioning for ${orgName} on ${siteId}`, 'routes');
+
+      const providerVdcs = await vcdClient.getProviderVdcs();
+      if (providerVdcs.length === 0) {
+        return res.status(400).json({ error: 'No Provider VDCs available' });
+      }
+      const providerVdc = providerVdcs[0];
+      
+      let storageProfileId = storageProfileName;
+      if (!storageProfileId && providerVdc.storageProfiles?.length > 0) {
+        storageProfileId = providerVdc.storageProfiles[0].id || providerVdc.storageProfiles[0].href?.split('/').pop();
+      }
+
+      const org = await vcdClient.createOrganization({
+        name: orgName,
+        displayName: orgFullName || orgName,
+        description: orgDescription,
+      });
+      log(`Organization created: ${org.id}`, 'routes');
+
+      const vdc = await vcdClient.createOrgVdc({
+        orgId: org.id,
+        name: vdcName,
+        description: `VDC for ${orgFullName || orgName}`,
+        allocationModel: allocationModel || 'AllocationVApp',
+        providerVdcId: providerVdc.id,
+        networkPoolId: providerVdc.networkPools?.[0]?.id,
+        cpuAllocatedMHz: cpuAllocatedMHz || 10000,
+        cpuLimitMHz: cpuLimitMHz || 10000,
+        memoryAllocatedMB: memoryAllocatedMB || 16384,
+        memoryLimitMB: memoryLimitMB || 16384,
+        storageProfileId,
+        storageLimitMB: storageLimitMB || 102400,
+        networkQuota: networkQuota || 10,
+      });
+      log(`Org VDC created: ${vdc.id}`, 'routes');
+
+      let edgeGateway = null;
+      let snatRule = null;
+
+      if (externalNetworkId && edgeGatewayName) {
+        edgeGateway = await vcdClient.createEdgeGateway({
+          name: edgeGatewayName,
+          description: `Edge Gateway for ${orgFullName || orgName}`,
+          orgVdcId: vdc.id,
+          orgId: org.id,
+          externalNetworkId,
+          primaryIpAddress,
+        });
+        log(`Edge Gateway created: ${edgeGateway.id}`, 'routes');
+
+        if (edgeGateway.primaryIp && internalSubnet) {
+          snatRule = await vcdClient.createSnatRule({
+            edgeGatewayId: edgeGateway.id,
+            name: `Outbound-SNAT-${orgName}`,
+            externalAddress: edgeGateway.primaryIp,
+            internalAddresses: internalSubnet,
+          });
+          log(`SNAT rule created: ${snatRule.id}`, 'routes');
+        }
+      }
+
+      res.json({
+        success: true,
+        orgId: org.id,
+        orgName: org.name,
+        vdcId: vdc.id,
+        vdcName: vdc.name,
+        edgeGatewayId: edgeGateway?.id,
+        edgeGatewayName: edgeGateway?.name,
+        primaryIp: edgeGateway?.primaryIp,
+        snatRuleId: snatRule?.id,
+      });
+    } catch (error: any) {
+      log(`Provisioning error: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

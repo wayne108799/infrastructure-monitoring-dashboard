@@ -1052,4 +1052,398 @@ export class VcdClient {
       throw error;
     }
   }
+
+  /**
+   * Get provisioning resources (Provider VDCs, storage profiles, external networks, network pools)
+   */
+  async getProvisioningResources(): Promise<{
+    providerVdcs: any[];
+    storageProfiles: any[];
+    externalNetworks: any[];
+    networkPools: any[];
+  }> {
+    try {
+      const [providerVdcs, externalNetworks] = await Promise.all([
+        this.getProviderVdcs(),
+        this.getExternalNetworks(),
+      ]);
+
+      const storageProfiles: any[] = [];
+      const networkPools: any[] = [];
+
+      for (const pvdc of providerVdcs) {
+        if (pvdc.storageProfiles) {
+          for (const sp of pvdc.storageProfiles) {
+            storageProfiles.push({
+              id: sp.id || sp.href?.split('/').pop(),
+              name: sp.name,
+              providerVdc: pvdc.name,
+            });
+          }
+        }
+        if (pvdc.networkPools) {
+          for (const np of pvdc.networkPools) {
+            networkPools.push({
+              id: np.id || np.href?.split('/').pop(),
+              name: np.name,
+              providerVdc: pvdc.name,
+            });
+          }
+        }
+      }
+
+      return {
+        providerVdcs,
+        storageProfiles,
+        externalNetworks,
+        networkPools,
+      };
+    } catch (error) {
+      log(`Error fetching provisioning resources: ${error}`, 'vcd-client');
+      throw error;
+    }
+  }
+
+  /**
+   * Wait for a VCD task to complete
+   */
+  async waitForTask(taskHref: string, timeoutMs: number = 300000): Promise<any> {
+    const startTime = Date.now();
+    const pollInterval = 2000;
+    
+    let taskUrl = taskHref;
+    if (taskHref.startsWith('http')) {
+      const url = new URL(taskHref);
+      taskUrl = url.pathname;
+    } else if (!taskHref.startsWith('/')) {
+      taskUrl = `/api/task/${taskHref}`;
+    }
+    
+    log(`Polling task: ${taskUrl}`, 'vcd-client');
+    
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const task = await this.request<any>(taskUrl);
+        
+        const status = task.status?.toLowerCase() || '';
+        log(`Task status: ${status}`, 'vcd-client');
+        
+        if (status === 'success') {
+          return task;
+        }
+        
+        if (status === 'error' || status === 'aborted' || status === 'canceled') {
+          const errorMsg = task.details || task.error?.message || task.message || 'Task failed';
+          throw new Error(`Task failed: ${errorMsg}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error: any) {
+        if (error.message?.includes('Task failed')) {
+          throw error;
+        }
+        log(`Error polling task: ${error}`, 'vcd-client');
+      }
+    }
+    
+    throw new Error('Task timeout exceeded');
+  }
+
+  /**
+   * Create a new Organization
+   */
+  async createOrganization(params: {
+    name: string;
+    displayName: string;
+    description?: string;
+  }): Promise<{ id: string; name: string }> {
+    try {
+      log(`Creating organization: ${params.name}`, 'vcd-client');
+      
+      const token = await this.ensureAuthenticated();
+      const url = `${this.config.url}/cloudapi/1.0.0/orgs`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;version=38.0',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: params.name,
+          displayName: params.displayName,
+          description: params.description || '',
+          isEnabled: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create organization: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (response.headers.get('location')) {
+        const taskUrl = response.headers.get('location');
+        if (taskUrl) {
+          await this.waitForTask(taskUrl);
+        }
+      }
+
+      log(`Organization created: ${result.id}`, 'vcd-client');
+      return { id: result.id, name: result.name };
+    } catch (error) {
+      log(`Error creating organization: ${error}`, 'vcd-client');
+      throw error;
+    }
+  }
+
+  /**
+   * Create an Org VDC using legacy API (CloudAPI doesn't support VDC creation directly)
+   */
+  async createOrgVdc(params: {
+    orgId: string;
+    name: string;
+    description?: string;
+    allocationModel: string;
+    providerVdcId: string;
+    networkPoolId?: string;
+    cpuAllocatedMHz: number;
+    cpuLimitMHz: number;
+    memoryAllocatedMB: number;
+    memoryLimitMB: number;
+    storageProfileId: string;
+    storageLimitMB: number;
+    networkQuota: number;
+  }): Promise<{ id: string; name: string }> {
+    try {
+      log(`Creating Org VDC: ${params.name} for org ${params.orgId}`, 'vcd-client');
+      
+      const orgUuid = this.extractUuid(params.orgId);
+      const pvdcUuid = this.extractUuid(params.providerVdcId);
+      const storageProfileUuid = this.extractUuid(params.storageProfileId);
+      
+      const token = await this.ensureAuthenticated();
+      const url = `${this.config.url}/api/admin/org/${orgUuid}/vdcsparams`;
+      
+      const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<CreateVdcParams name="${params.name}" xmlns="http://www.vmware.com/vcloud/v1.5">
+    <Description>${params.description || ''}</Description>
+    <AllocationModel>${params.allocationModel}</AllocationModel>
+    <ComputeCapacity>
+        <Cpu>
+            <Units>MHz</Units>
+            <Allocated>${params.cpuAllocatedMHz}</Allocated>
+            <Limit>${params.cpuLimitMHz}</Limit>
+        </Cpu>
+        <Memory>
+            <Units>MB</Units>
+            <Allocated>${params.memoryAllocatedMB}</Allocated>
+            <Limit>${params.memoryLimitMB}</Limit>
+        </Memory>
+    </ComputeCapacity>
+    <NicQuota>0</NicQuota>
+    <NetworkQuota>${params.networkQuota}</NetworkQuota>
+    <VdcStorageProfile>
+        <Enabled>true</Enabled>
+        <Units>MB</Units>
+        <Limit>${params.storageLimitMB}</Limit>
+        <Default>true</Default>
+        <ProviderVdcStorageProfile href="${this.config.url}/api/admin/pvdcStorageProfile/${storageProfileUuid}" />
+    </VdcStorageProfile>
+    <ResourceGuaranteedMemory>1</ResourceGuaranteedMemory>
+    <ResourceGuaranteedCpu>1</ResourceGuaranteedCpu>
+    <VCpuInMhz>2800</VCpuInMhz>
+    <IsThinProvision>true</IsThinProvision>
+    ${params.networkPoolId ? `<NetworkPoolReference href="${this.config.url}/api/admin/extension/networkPool/${this.extractUuid(params.networkPoolId)}"/>` : ''}
+    <ProviderVdcReference href="${this.config.url}/api/admin/providervdc/${pvdcUuid}"/>
+    <UsesFastProvisioning>false</UsesFastProvisioning>
+</CreateVdcParams>`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/*+xml;version=38.0',
+          'Content-Type': 'application/vnd.vmware.admin.createVdcParams+xml',
+          'Authorization': `Bearer ${token}`,
+          'x-vcloud-authorization': token,
+        },
+        body: xmlBody,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create Org VDC: ${response.status} ${errorText}`);
+      }
+
+      const responseText = await response.text();
+      
+      const hrefMatch = responseText.match(/href="[^"]*\/vdc\/([^"]+)"/);
+      const vdcId = hrefMatch ? hrefMatch[1] : '';
+      
+      const nameMatch = responseText.match(/name="([^"]+)"/);
+      const vdcName = nameMatch ? nameMatch[1] : params.name;
+
+      if (response.headers.get('location')) {
+        const taskUrl = response.headers.get('location');
+        if (taskUrl) {
+          await this.waitForTask(taskUrl);
+        }
+      }
+
+      log(`Org VDC created: ${vdcId}`, 'vcd-client');
+      return { id: `urn:vcloud:vdc:${vdcId}`, name: vdcName };
+    } catch (error) {
+      log(`Error creating Org VDC: ${error}`, 'vcd-client');
+      throw error;
+    }
+  }
+
+  /**
+   * Create an Edge Gateway
+   */
+  async createEdgeGateway(params: {
+    name: string;
+    description?: string;
+    orgVdcId: string;
+    orgId: string;
+    externalNetworkId: string;
+    primaryIpAddress?: string;
+  }): Promise<{ id: string; name: string; primaryIp?: string }> {
+    try {
+      log(`Creating Edge Gateway: ${params.name}`, 'vcd-client');
+      
+      const extNet = await this.request<any>(`/cloudapi/1.0.0/externalNetworks/${params.externalNetworkId}`);
+      
+      let primaryIp = params.primaryIpAddress;
+      let gateway = '';
+      let prefixLength = 24;
+      
+      if (extNet.subnets?.values?.length > 0) {
+        const subnet = extNet.subnets.values[0];
+        gateway = subnet.gateway;
+        prefixLength = subnet.prefixLength;
+        
+        if (!primaryIp && subnet.ipRanges?.values?.length > 0) {
+          primaryIp = subnet.ipRanges.values[0].startAddress;
+        }
+      }
+
+      const token = await this.ensureAuthenticated();
+      const url = `${this.config.url}/cloudapi/1.0.0/edgeGateways`;
+      
+      const body = {
+        name: params.name,
+        description: params.description || '',
+        edgeGatewayUplinks: [{
+          uplinkId: params.externalNetworkId,
+          subnets: {
+            values: [{
+              gateway,
+              prefixLength,
+              ipRanges: primaryIp ? {
+                values: [{ startAddress: primaryIp, endAddress: primaryIp }]
+              } : undefined,
+              enabled: true,
+              primaryIp: primaryIp,
+            }]
+          },
+          connected: true,
+          dedicated: false,
+        }],
+        ownerRef: { id: params.orgVdcId },
+        orgRef: { id: params.orgId },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;version=38.0',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create Edge Gateway: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (response.headers.get('location')) {
+        const taskUrl = response.headers.get('location');
+        if (taskUrl) {
+          await this.waitForTask(taskUrl);
+        }
+      }
+
+      log(`Edge Gateway created: ${result.id}`, 'vcd-client');
+      return { id: result.id, name: result.name, primaryIp };
+    } catch (error) {
+      log(`Error creating Edge Gateway: ${error}`, 'vcd-client');
+      throw error;
+    }
+  }
+
+  /**
+   * Create an SNAT rule on an Edge Gateway
+   */
+  async createSnatRule(params: {
+    edgeGatewayId: string;
+    name: string;
+    externalAddress: string;
+    internalAddresses: string;
+  }): Promise<{ id: string }> {
+    try {
+      log(`Creating SNAT rule on ${params.edgeGatewayId}`, 'vcd-client');
+      
+      const token = await this.ensureAuthenticated();
+      const url = `${this.config.url}/cloudapi/1.0.0/edgeGateways/${params.edgeGatewayId}/nat/rules`;
+      
+      const body = {
+        name: params.name,
+        description: 'Auto-provisioned outbound SNAT rule',
+        enabled: true,
+        ruleType: 'SNAT',
+        externalAddresses: params.externalAddress,
+        internalAddresses: params.internalAddresses,
+        firewallMatch: 'MATCH_INTERNAL_ADDRESS',
+        logging: false,
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;version=38.0',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create SNAT rule: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (response.headers.get('location')) {
+        const taskUrl = response.headers.get('location');
+        if (taskUrl) {
+          await this.waitForTask(taskUrl);
+        }
+      }
+
+      log(`SNAT rule created: ${result.id}`, 'vcd-client');
+      return { id: result.id };
+    } catch (error) {
+      log(`Error creating SNAT rule: ${error}`, 'vcd-client');
+      throw error;
+    }
+  }
 }

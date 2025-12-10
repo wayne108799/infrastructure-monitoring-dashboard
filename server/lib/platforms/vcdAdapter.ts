@@ -15,6 +15,7 @@ import { VcdClient, type VcdConfig } from '../vcdClient';
 export class VcdAdapter implements PlatformClient {
   private config: PlatformConfig;
   private client: VcdClient;
+  public vcdClient: VcdClient;
 
   constructor(config: PlatformConfig) {
     this.config = config;
@@ -27,6 +28,7 @@ export class VcdAdapter implements PlatformClient {
     };
     
     this.client = new VcdClient(vcdConfig);
+    this.vcdClient = this.client;
   }
 
   getPlatformType(): 'vcd' {

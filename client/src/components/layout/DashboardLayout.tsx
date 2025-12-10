@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft, List, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft, List, FileSpreadsheet, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -28,6 +28,7 @@ function AppSidebar() {
     { icon: LayoutDashboard, label: 'Overview', href: '/' },
     { icon: List, label: 'Details', href: '/details' },
     { icon: FileSpreadsheet, label: 'Report', href: '/report' },
+    { icon: PlusCircle, label: 'Provision', href: '/provision' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
 
