@@ -18,14 +18,13 @@ This guide covers deploying the Multi-Platform Infrastructure Monitoring Dashboa
 Download and run the install script for a fully automated setup:
 
 ```bash
-# Download the install script
-wget https://raw.githubusercontent.com/YOUR_USERNAME/infrastructure-monitoring-dashboard/main/install.sh
+# One-liner: Download and run the installer
+wget https://raw.githubusercontent.com/wayne108799/infrastructure-monitoring-dashboard/main/install.sh && chmod +x install.sh && ./install.sh
 
-# Make it executable
-chmod +x install.sh
-
-# Run the installer
-./install.sh
+# Or step-by-step:
+# wget https://raw.githubusercontent.com/wayne108799/infrastructure-monitoring-dashboard/main/install.sh
+# chmod +x install.sh
+# ./install.sh
 ```
 
 The script will:
@@ -91,7 +90,7 @@ sudo chown $USER:$USER /opt/monitoring-dashboard
 
 # Clone from GitHub (replace with your repository URL)
 cd /opt/monitoring-dashboard
-git clone https://github.com/YOUR_USERNAME/infrastructure-monitoring-dashboard.git .
+git clone https://github.com/wayne108799/infrastructure-monitoring-dashboard.git .
 ```
 
 ---
@@ -412,7 +411,7 @@ sudo -u postgres psql -c "CREATE DATABASE monitoring_dashboard OWNER monitoring;
 sudo mkdir -p /opt/monitoring-dashboard
 sudo chown $USER:$USER /opt/monitoring-dashboard
 cd /opt/monitoring-dashboard
-git clone https://github.com/YOUR_USERNAME/infrastructure-monitoring-dashboard.git .
+git clone https://github.com/wayne108799/infrastructure-monitoring-dashboard.git .
 
 # 4. Configure
 echo "DATABASE_URL=postgresql://monitoring:secure_password@localhost:5432/monitoring_dashboard" > .env
