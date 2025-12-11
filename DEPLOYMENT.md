@@ -13,7 +13,35 @@ This guide covers deploying the Multi-Platform Infrastructure Monitoring Dashboa
 
 ---
 
-## Step 1: Update System and Install Dependencies
+## Automated Installation (Recommended)
+
+Download and run the install script for a fully automated setup:
+
+```bash
+# Download the install script
+wget https://raw.githubusercontent.com/YOUR_USERNAME/infrastructure-monitoring-dashboard/main/install.sh
+
+# Make it executable
+chmod +x install.sh
+
+# Run the installer
+./install.sh
+```
+
+The script will:
+- Install Node.js 20.x, PostgreSQL, and Nginx
+- Create the database and user
+- Configure the application
+- Set up a systemd service
+- Configure Nginx as a reverse proxy
+
+---
+
+## Manual Installation
+
+If you prefer manual installation, follow the steps below.
+
+### Step 1: Update System and Install Dependencies
 
 ```bash
 # Update system packages
