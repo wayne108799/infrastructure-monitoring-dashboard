@@ -1,0 +1,67 @@
+monitoring-dashboard.service - Infrastructure Monitoring Dashboard
+     Loaded: loaded (/etc/systemd/system/monitoring-dashboard.service; enabled; preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Fri 2025-12-12 17:47:44 UTC; 3s ago
+    Process: 48718 ExecStart=/usr/bin/node dist/index.js (code=exited, status=1/FAILURE)
+   Main PID: 48718 (code=exited, status=1/FAILURE)
+        CPU: 35ms
+~
+
+hivelocity@montorserver:~$ sudo systemctl start monitoring-dashboard.service
+hivelocity@montorserver:~$ sudo systemctl status monitoring-dashboard.service
+● monitoring-dashboard.service - Infrastructure Monitoring Dashboard
+     Loaded: loaded (/etc/systemd/system/monitoring-dashboard.service; enabled; preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Fri 2025-12-12 17:48:15 UTC; 2s ago
+    Process: 48769 ExecStart=/usr/bin/node dist/index.js (code=exited, status=1/FAILURE)
+   Main PID: 48769 (code=exited, status=1/FAILURE)
+        CPU: 33ms
+hivelocity@montorserver:~$ sudo journalctl -u monitoring-dashboard -n 50 --no-pager
+Dec 12 17:48:15 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 17:48:15 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
+Dec 12 17:48:25 montorserver systemd[1]: monitoring-dashboard.service: Scheduled restart job, restart counter is at 18.
+Dec 12 17:48:25 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]: node:internal/modules/cjs/loader:1210
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:   throw err;
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:   ^
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]: Error: Cannot find module '/opt/monitoring-dashboard/dist/index.js'
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:     at node:internal/main/run_main_module:28:49 {
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:   code: 'MODULE_NOT_FOUND',
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]:   requireStack: []
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]: }
+Dec 12 17:48:25 montorserver monitoring-dashboard[48781]: Node.js v20.19.6
+Dec 12 17:48:25 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 17:48:25 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
+Dec 12 17:48:36 montorserver systemd[1]: monitoring-dashboard.service: Scheduled restart job, restart counter is at 19.
+Dec 12 17:48:36 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]: node:internal/modules/cjs/loader:1210
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:   throw err;
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:   ^
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]: Error: Cannot find module '/opt/monitoring-dashboard/dist/index.js'
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:     at node:internal/main/run_main_module:28:49 {
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:   code: 'MODULE_NOT_FOUND',
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]:   requireStack: []
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]: }
+Dec 12 17:48:36 montorserver monitoring-dashboard[48790]: Node.js v20.19.6
+Dec 12 17:48:36 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 17:48:36 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
+Dec 12 17:48:46 montorserver systemd[1]: monitoring-dashboard.service: Scheduled restart job, restart counter is at 20.
+Dec 12 17:48:46 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]: node:internal/modules/cjs/loader:1210
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:   throw err;
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:   ^
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]: Error: Cannot find module '/opt/monitoring-dashboard/dist/index.js'
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:     at node:internal/main/run_main_module:28:49 {
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:   code: 'MODULE_NOT_FOUND',
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]:   requireStack: []
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]: }
+Dec 12 17:48:46 montorserver monitoring-dashboard[48804]: Node.js v20.19.6
+Dec 12 17:48:46 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Dec 12 17:48:46 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
