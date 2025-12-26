@@ -207,6 +207,68 @@ export class VeeamOneClient implements PlatformClient {
     }
   }
 
+  async getBackupMetricsByOrg(): Promise<Map<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }>> {
+    const orgMetrics = new Map<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }>();
+    
+    try {
+      const protectedVMs = await this.getProtectedVMs();
+      
+      for (const vm of protectedVMs) {
+        const orgName = this.extractOrgFromVM(vm);
+        if (!orgName) continue;
+        
+        const status = vm.protectionStatus?.toLowerCase() || '';
+        const isProtected = vm.isProtected === true || 
+                           status === 'protected' || 
+                           status === 'success' ||
+                           status === 'ok';
+        
+        const backupSize = Number(vm.backupSizeBytes || vm.usedSpaceBytes || 0) / (1024 * 1024 * 1024);
+        
+        if (!orgMetrics.has(orgName)) {
+          orgMetrics.set(orgName, { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0 });
+        }
+        
+        const metrics = orgMetrics.get(orgName)!;
+        metrics.totalVmCount++;
+        if (isProtected) {
+          metrics.protectedVmCount++;
+        }
+        metrics.backupSizeGB += backupSize;
+      }
+      
+      log(`Backup metrics by org: ${orgMetrics.size} organizations found`);
+    } catch (error) {
+      log(`Error getting backup metrics by org: ${error}`);
+    }
+    
+    return orgMetrics;
+  }
+
+  private extractOrgFromVM(vm: any): string | null {
+    const path = vm.path || vm.vmPath || vm.containerPath || vm.folderPath || '';
+    const container = vm.container || vm.vdc || vm.organization || vm.orgName || '';
+    
+    if (container) {
+      return String(container).trim();
+    }
+    
+    if (path) {
+      const parts = String(path).split('/').filter(p => p);
+      if (parts.length >= 2) {
+        return parts[0];
+      }
+    }
+    
+    const name = vm.name || '';
+    const match = name.match(/^([^-_]+)[-_]/);
+    if (match) {
+      return match[1];
+    }
+    
+    return null;
+  }
+
   async getVeeamSummary(): Promise<VeeamSiteSummary> {
     const [backupMetrics, repositories] = await Promise.all([
       this.getBackupMetrics(),

@@ -72,9 +72,12 @@ export interface OrgVdc {
   isEnabled?: boolean;
   allocationModel?: string;
   allocationType?: string;
+  orgName?: string;
+  orgFullName?: string;
   org?: {
     name: string;
     id: string;
+    displayName?: string;
   };
   computeCapacity?: {
     cpu?: {
@@ -624,6 +627,29 @@ export async function testVeeamConnection(config: { url: string; username: strin
   });
   if (!response.ok) {
     throw new Error('Failed to test Veeam connection');
+  }
+  return response.json();
+}
+
+// Backup metrics by organization
+export interface OrgBackupMetrics {
+  protectedVmCount: number;
+  totalVmCount: number;
+  backupSizeGB: number;
+}
+
+export interface BackupByOrgResponse {
+  configured: boolean;
+  organizations: Record<string, OrgBackupMetrics>;
+}
+
+/**
+ * Fetch backup metrics grouped by organization name
+ */
+export async function fetchBackupByOrg(): Promise<BackupByOrgResponse> {
+  const response = await fetch('/api/veeam/backup-by-org');
+  if (!response.ok) {
+    throw new Error('Failed to fetch backup metrics by org');
   }
   return response.json();
 }

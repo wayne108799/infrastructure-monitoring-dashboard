@@ -3,14 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { Cpu, Database, Globe, Building2, Server } from 'lucide-react';
-import type { OrgVdc } from '@/lib/api';
+import { Cpu, Database, Globe, Building2, Server, Shield } from 'lucide-react';
+import type { OrgVdc, OrgBackupMetrics } from '@/lib/api';
 
 interface VDCDetailCardProps {
   vdc: OrgVdc;
+  backupMetrics?: OrgBackupMetrics;
 }
 
-export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
+export function VDCDetailCard({ vdc, backupMetrics }: VDCDetailCardProps) {
   const cpuAllocated = vdc.computeCapacity?.cpu?.allocated || 0;
   const cpuLimit = vdc.computeCapacity?.cpu?.limit || 0;
   const cpuReserved = vdc.computeCapacity?.cpu?.reserved || 0;
@@ -63,20 +64,26 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
   const storageProfiles = vdc.storageProfiles || [];
   const hasComputeData = cpuAllocated > 0 || memAllocated > 0;
   const allocationType = vdc.allocationType || vdc.allocationModel || 'N/A';
-  const orgName = vdc.org?.name;
+  const orgFullName = vdc.orgFullName || vdc.org?.displayName || vdc.org?.name;
+  const orgName = vdc.orgName || vdc.org?.name;
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 transition-colors duration-300 h-full flex flex-col" data-testid={`vdc-card-${vdc.id}`}>
       <CardHeader className="pb-3">
         <div className="flex flex-row items-start justify-between">
-          <div className="space-y-1">
+          <div className="space-y-1 flex-1 min-w-0">
+            {orgFullName && (
+              <div className="text-sm font-semibold text-foreground truncate" data-testid={`org-fullname-${vdc.id}`}>
+                {orgFullName}
+              </div>
+            )}
             <CardTitle className="text-lg font-medium tracking-tight flex items-center gap-2" data-testid={`vdc-name-${vdc.id}`}>
               {vdc.name}
             </CardTitle>
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
               {orgName && (
                 <>
-                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{orgName}</span>
+                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />ID: {orgName}</span>
                   <span>•</span>
                 </>
               )}
@@ -186,6 +193,37 @@ export function VDCDetailCard({ vdc }: VDCDetailCardProps) {
             type="network"
           />
         </div>
+
+        {/* Backup Section - only show when there's actual data */}
+        {backupMetrics && (backupMetrics.protectedVmCount > 0 || backupMetrics.totalVmCount > 0 || backupMetrics.backupSizeGB > 0) && (
+          <>
+            <Separator className="bg-border/50" />
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Shield className="h-3 w-3" /> Backup Status
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <div className="text-2xl font-bold text-green-500" data-testid={`backup-protected-${vdc.id}`}>
+                    {backupMetrics.protectedVmCount}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Protected VMs</div>
+                </div>
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-500" data-testid={`backup-storage-${vdc.id}`}>
+                    {backupMetrics.backupSizeGB.toFixed(1)} GB
+                  </div>
+                  <div className="text-xs text-muted-foreground">Backup Storage</div>
+                </div>
+              </div>
+              {backupMetrics.totalVmCount > 0 && (
+                <div className="text-xs text-muted-foreground text-center">
+                  {Math.round((backupMetrics.protectedVmCount / backupMetrics.totalVmCount) * 100)}% protection coverage
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
       </CardContent>
     </Card>

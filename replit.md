@@ -88,6 +88,7 @@ VEEAM_VEEAM1_LOCATION=US-East
 - `GET /api/export/tenants` - Export all tenants as CSV (includes commit levels)
 - `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
 - `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
+- `GET /api/veeam/backup-by-org` - Get backup metrics grouped by organization name (for tenant matching)
 
 ## Minimum Commit Levels
 On the Details page, each tenant card has a "Set Commit" button to define minimum resource commitments:
@@ -100,6 +101,11 @@ On the Details page, each tenant card has a "Set Commit" button to define minimu
 These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
 ## Recent Changes
+- **Per-Tenant Backup Metrics**: Details page now shows backup status per organization
+  - Protected VMs count, backup storage used, protection coverage percentage
+  - Metrics matched from Veeam ONE to VCD organizations using normalized name matching
+  - Only displays when Veeam is configured and has data for the organization
+  - Endpoint: `GET /api/veeam/backup-by-org`
 - **Veeam ONE UI Configuration**: Settings page now includes dedicated form to configure Veeam ONE
   - Enter URL, username, password, display name, and location
   - Test connection button validates connectivity before saving

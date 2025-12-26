@@ -511,6 +511,53 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/veeam/backup-by-org
+   * Get backup metrics grouped by organization name (for matching with VCD tenants)
+   */
+  app.get('/api/veeam/backup-by-org', async (req, res) => {
+    try {
+      const allClients = platformRegistry.getAllClients();
+      const veeamClients: VeeamOneClient[] = [];
+      for (const [, client] of Array.from(allClients.entries())) {
+        if (client.getPlatformType() === 'veeam') {
+          veeamClients.push(client as VeeamOneClient);
+        }
+      }
+
+      if (veeamClients.length === 0) {
+        return res.json({ configured: false, organizations: {} });
+      }
+
+      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }> = {};
+
+      for (const client of veeamClients) {
+        try {
+          const clientMetrics = await client.getBackupMetricsByOrg();
+          for (const [orgName, metrics] of Array.from(clientMetrics.entries())) {
+            const normalizedName = orgName.toLowerCase().trim();
+            if (!orgMetrics[normalizedName]) {
+              orgMetrics[normalizedName] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0 };
+            }
+            orgMetrics[normalizedName].protectedVmCount += metrics.protectedVmCount;
+            orgMetrics[normalizedName].totalVmCount += metrics.totalVmCount;
+            orgMetrics[normalizedName].backupSizeGB += metrics.backupSizeGB;
+          }
+        } catch (error: any) {
+          log(`Error fetching backup metrics by org from Veeam: ${error.message}`, 'routes');
+        }
+      }
+
+      res.json({
+        configured: true,
+        organizations: orgMetrics,
+      });
+    } catch (error: any) {
+      log(`Error fetching backup by org: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * GET /api/commit-levels
    * Get all tenant commit levels
    */

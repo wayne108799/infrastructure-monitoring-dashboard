@@ -19,13 +19,15 @@ import {
   fetchSiteSummary, 
   fetchCommitLevels,
   saveCommitLevel,
+  fetchBackupByOrg,
   getPlatformShortName, 
   getPlatformColor,
   type Site, 
   type OrgVdc, 
   type SiteSummary,
   type TenantCommitLevel,
-  type InsertTenantCommitLevel
+  type InsertTenantCommitLevel,
+  type OrgBackupMetrics
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -72,12 +74,47 @@ export default function Details() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: backupByOrg } = useQuery({
+    queryKey: ['backupByOrg'],
+    queryFn: () => fetchBackupByOrg(),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
   const commitLevelMap = new Map<string, TenantCommitLevel>();
   if (commitLevels) {
     for (const level of commitLevels) {
       commitLevelMap.set(level.tenantId, level);
     }
   }
+
+  const normalizeOrgName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]/g, '')
+      .replace(/inc|llc|ltd|corp|co|limited/gi, '');
+  };
+
+  const getBackupMetricsForOrg = (orgName?: string): OrgBackupMetrics | undefined => {
+    if (!orgName || !backupByOrg?.configured || !backupByOrg.organizations) return undefined;
+    
+    const normalizedSearch = normalizeOrgName(orgName);
+    
+    const exactMatch = backupByOrg.organizations[orgName.toLowerCase().trim()];
+    if (exactMatch) return exactMatch;
+    
+    for (const [key, metrics] of Object.entries(backupByOrg.organizations)) {
+      if (normalizeOrgName(key) === normalizedSearch) {
+        return metrics;
+      }
+      if (normalizedSearch.includes(normalizeOrgName(key)) || normalizeOrgName(key).includes(normalizedSearch)) {
+        return metrics;
+      }
+    }
+    
+    return undefined;
+  };
 
   const saveCommitMutation = useMutation({
     mutationFn: saveCommitLevel,
@@ -478,7 +515,7 @@ export default function Details() {
                       transition={{ delay: idx * 0.1 }}
                       className="h-full relative"
                     >
-                      <VDCDetailCard vdc={vdc} />
+                      <VDCDetailCard vdc={vdc} backupMetrics={getBackupMetricsForOrg(vdc.orgFullName || vdc.orgName)} />
                       <div className="absolute top-2 right-2">
                         <Button
                           variant={hasCommit ? "default" : "outline"}
