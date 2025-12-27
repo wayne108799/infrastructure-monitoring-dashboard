@@ -135,7 +135,12 @@ export class VeeamOneClient implements PlatformClient {
   async getProtectedVMs(): Promise<any[]> {
     try {
       const response = await this.request<any>('/api/infrastructure/protectedVirtualMachines');
-      return Array.isArray(response) ? response : response.items || response.data || [];
+      const vms = Array.isArray(response) ? response : response.items || response.data || [];
+      log(`Fetched ${vms.length} protected VMs from Veeam ONE`);
+      if (vms.length > 0) {
+        log(`First VM sample: ${JSON.stringify(vms[0]).substring(0, 500)}`);
+      }
+      return vms;
     } catch (error) {
       log(`Error fetching protected VMs: ${error}`);
       return [];
