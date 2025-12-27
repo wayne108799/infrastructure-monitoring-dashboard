@@ -515,22 +515,12 @@ export default function Details() {
                       transition={{ delay: idx * 0.1 }}
                       className="h-full relative"
                     >
-                      <VDCDetailCard vdc={vdc} backupMetrics={getBackupMetricsForOrg(vdc.orgFullName || vdc.orgName)} />
-                      <div className="absolute top-2 right-2">
-                        <Button
-                          variant={hasCommit ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => openCommitDialog(vdc)}
-                          data-testid={`button-commit-${vdc.id}`}
-                          className={cn(
-                            "text-xs h-7 px-2",
-                            hasCommit && "bg-green-600 hover:bg-green-700"
-                          )}
-                        >
-                          <Settings2 className="h-3 w-3 mr-1" />
-                          {hasCommit ? 'Commit Set' : 'Set Commit'}
-                        </Button>
-                      </div>
+                      <VDCDetailCard 
+                        vdc={vdc} 
+                        backupMetrics={getBackupMetricsForOrg(vdc.orgName)}
+                        onSetCommit={() => openCommitDialog(vdc)}
+                        hasCommit={hasCommit}
+                      />
                     </motion.div>
                   );
                 })}

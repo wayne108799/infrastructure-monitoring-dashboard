@@ -1,17 +1,20 @@
 import { ResourceBar } from './ResourceBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { Cpu, Database, Globe, Building2, Server, Shield } from 'lucide-react';
+import { Cpu, Database, Globe, Building2, Server, Shield, Settings2 } from 'lucide-react';
 import type { OrgVdc, OrgBackupMetrics } from '@/lib/api';
 
 interface VDCDetailCardProps {
   vdc: OrgVdc;
   backupMetrics?: OrgBackupMetrics;
+  onSetCommit?: () => void;
+  hasCommit?: boolean;
 }
 
-export function VDCDetailCard({ vdc, backupMetrics }: VDCDetailCardProps) {
+export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VDCDetailCardProps) {
   const cpuAllocated = vdc.computeCapacity?.cpu?.allocated || 0;
   const cpuLimit = vdc.computeCapacity?.cpu?.limit || 0;
   const cpuReserved = vdc.computeCapacity?.cpu?.reserved || 0;
@@ -89,18 +92,35 @@ export function VDCDetailCard({ vdc, backupMetrics }: VDCDetailCardProps) {
               <span>{allocationType}</span>
             </div>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "font-mono text-[10px] uppercase tracking-widest border-opacity-50",
-              !isCritical && !isWarning ? "border-green-500 text-green-500 bg-green-500/10" :
-              isWarning ? "border-amber-500 text-amber-500 bg-amber-500/10" :
-              "border-red-500 text-red-500 bg-red-500/10"
+          <div className="flex flex-col gap-2 items-end shrink-0">
+            <Badge
+              variant="outline"
+              className={cn(
+                "font-mono text-[10px] uppercase tracking-widest border-opacity-50",
+                !isCritical && !isWarning ? "border-green-500 text-green-500 bg-green-500/10" :
+                isWarning ? "border-amber-500 text-amber-500 bg-amber-500/10" :
+                "border-red-500 text-red-500 bg-red-500/10"
+              )}
+              data-testid={`vdc-status-${vdc.id}`}
+            >
+              {isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'HEALTHY'}
+            </Badge>
+            {onSetCommit && (
+              <Button
+                variant={hasCommit ? "default" : "outline"}
+                size="sm"
+                onClick={onSetCommit}
+                data-testid={`button-commit-${vdc.id}`}
+                className={cn(
+                  "text-xs h-7 px-2",
+                  hasCommit && "bg-green-600 hover:bg-green-700"
+                )}
+              >
+                <Settings2 className="h-3 w-3 mr-1" />
+                {hasCommit ? 'Commit Set' : 'Set Commit'}
+              </Button>
             )}
-            data-testid={`vdc-status-${vdc.id}`}
-          >
-            {isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'HEALTHY'}
-          </Badge>
+          </div>
         </div>
       </CardHeader>
 
