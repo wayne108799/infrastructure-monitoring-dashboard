@@ -133,46 +133,71 @@ export class VeeamOneClient implements PlatformClient {
   }
 
   async getProtectedVMs(): Promise<any[]> {
-    try {
-      const response = await this.request<any>('/api/infrastructure/protectedVirtualMachines');
-      const vms = Array.isArray(response) ? response : response.items || response.data || [];
-      log(`Fetched ${vms.length} protected VMs from Veeam ONE`);
-      if (vms.length > 0) {
-        log(`First VM sample: ${JSON.stringify(vms[0]).substring(0, 500)}`);
+    // Try different API versions for compatibility
+    const endpoints = [
+      '/api/v2.1/protectedData/virtualMachines',
+      '/api/v2/protectedData/virtualMachines',
+      '/api/v1/protectedData/virtualMachines',
+      '/api/v2.1/vmware/protectedData/virtualMachines',
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        log(`Trying Veeam endpoint: ${endpoint}`);
+        const response = await this.request<any>(endpoint);
+        const vms = Array.isArray(response) ? response : response.items || response.data || [];
+        log(`Fetched ${vms.length} protected VMs from Veeam ONE using ${endpoint}`);
+        if (vms.length > 0) {
+          log(`First VM sample: ${JSON.stringify(vms[0]).substring(0, 500)}`);
+        }
+        return vms;
+      } catch (error: any) {
+        log(`Endpoint ${endpoint} failed: ${error.message}`);
+        continue;
       }
-      return vms;
-    } catch (error) {
-      log(`Error fetching protected VMs: ${error}`);
-      return [];
     }
+    
+    log('All Veeam protected VM endpoints failed');
+    return [];
   }
 
   async getRepositories(): Promise<BackupRepository[]> {
-    try {
-      const response = await this.request<any>('/api/backupInfrastructure/repositories');
-      const repos = Array.isArray(response) ? response : response.items || response.data || [];
-      
-      return repos.map((repo: any) => {
-        const capacityGB = Number(repo.capacityGB || repo.capacity) || 0;
-        const usedSpaceGB = Number(repo.usedSpaceGB || repo.usedSpace) || 0;
-        const freeSpaceGB = Number(repo.freeGB || repo.freeSpace) || Math.max(0, capacityGB - usedSpaceGB);
-        const usagePercentage = capacityGB > 0 
-          ? Math.min(100, Math.round((usedSpaceGB / capacityGB) * 100)) 
-          : 0;
+    const endpoints = [
+      '/api/v2.1/backupInfrastructure/repositories',
+      '/api/v2/backupInfrastructure/repositories',
+      '/api/v1/backupInfrastructure/repositories',
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        const response = await this.request<any>(endpoint);
+        const repos = Array.isArray(response) ? response : response.items || response.data || [];
         
-        return {
-          id: repo.id || repo.uid || '',
-          name: repo.name || 'Unknown',
-          capacityGB,
-          usedSpaceGB,
-          freeSpaceGB,
-          usagePercentage,
-        };
-      });
-    } catch (error) {
-      log(`Error fetching repositories: ${error}`);
-      return [];
+        return repos.map((repo: any) => {
+          const capacityGB = Number(repo.capacityGB || repo.capacity) || 0;
+          const usedSpaceGB = Number(repo.usedSpaceGB || repo.usedSpace) || 0;
+          const freeSpaceGB = Number(repo.freeGB || repo.freeSpace) || Math.max(0, capacityGB - usedSpaceGB);
+          const usagePercentage = capacityGB > 0 
+            ? Math.min(100, Math.round((usedSpaceGB / capacityGB) * 100)) 
+            : 0;
+          
+          return {
+            id: repo.id || repo.uid || '',
+            name: repo.name || 'Unknown',
+            capacityGB,
+            usedSpaceGB,
+            freeSpaceGB,
+            usagePercentage,
+          };
+        });
+      } catch (error: any) {
+        log(`Endpoint ${endpoint} failed: ${error.message}`);
+        continue;
+      }
     }
+    
+    log('All Veeam repository endpoints failed');
+    return [];
   }
 
   async getBackupMetrics(): Promise<BackupMetrics> {
