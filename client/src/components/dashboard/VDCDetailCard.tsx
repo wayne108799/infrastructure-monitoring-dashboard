@@ -72,18 +72,17 @@ export function VDCDetailCard({ vdc, backupMetrics }: VDCDetailCardProps) {
       <CardHeader className="pb-3">
         <div className="flex flex-row items-start justify-between">
           <div className="space-y-1 flex-1 min-w-0">
-            {orgFullName && (
-              <div className="text-sm font-semibold text-foreground truncate" data-testid={`org-fullname-${vdc.id}`}>
-                {orgFullName}
-              </div>
-            )}
-            <CardTitle className="text-lg font-medium tracking-tight flex items-center gap-2" data-testid={`vdc-name-${vdc.id}`}>
-              {vdc.name}
+            <CardTitle className="text-lg font-semibold tracking-tight truncate" data-testid={`org-fullname-${vdc.id}`}>
+              {orgFullName || orgName || 'Unknown Organization'}
             </CardTitle>
+            <div className="text-sm text-muted-foreground flex items-center gap-2" data-testid={`vdc-name-${vdc.id}`}>
+              <Server className="h-3 w-3" />
+              <span className="truncate">VDC: {vdc.name}</span>
+            </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
               {orgName && (
                 <>
-                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />ID: {orgName}</span>
+                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />Org ID: {orgName}</span>
                   <span>•</span>
                 </>
               )}
