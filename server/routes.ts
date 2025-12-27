@@ -25,9 +25,12 @@ export async function registerRoutes(
   
   // Load Veeam ONE config from globalConfig
   try {
+    log(`Attempting to load Veeam ONE config from database...`, 'routes');
     const veeamConfigJson = await storage.getGlobalConfig('veeam_config');
+    log(`Veeam config from DB: ${veeamConfigJson ? 'found' : 'not found'}`, 'routes');
     if (veeamConfigJson) {
       const veeamConfig = JSON.parse(veeamConfigJson);
+      log(`Parsed Veeam config: url=${veeamConfig.url}, hasUsername=${!!veeamConfig.username}, hasPassword=${!!veeamConfig.password}`, 'routes');
       if (veeamConfig.url && veeamConfig.username && veeamConfig.password) {
         platformRegistry.addSiteFromConfig({
           siteId: 'VEEAM_GLOBAL',
@@ -39,10 +42,12 @@ export async function registerRoutes(
           password: veeamConfig.password,
         });
         log(`Loaded Veeam ONE configuration from database`, 'routes');
+      } else {
+        log(`Veeam config incomplete - missing required fields`, 'routes');
       }
     }
-  } catch (error) {
-    log(`Warning: Could not load Veeam config: ${error}`, 'routes');
+  } catch (error: any) {
+    log(`Warning: Could not load Veeam config: ${error.message}`, 'routes');
   }
 
   /**

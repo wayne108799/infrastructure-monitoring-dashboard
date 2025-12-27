@@ -1,0 +1,27 @@
+NE","location":"","isEnabled":true}
+Dec 27 00:38:53 montorserver monitoring-dashboard[837757]: 12:38:53 AM [veeam-client] Authenticating with Veeam ONE: https://10.1.202.15:1239
+Dec 27 00:38:53 montorserver monitoring-dashboard[837757]: 12:38:53 AM [veeam-client] Connection test failed: fetch failed
+Dec 27 00:38:53 montorserver monitoring-dashboard[837757]: 12:38:53 AM [express] POST /api/veeam/test-connection 200 in 45ms :: {"success":false,"error":"fetch failed"}
+Dec 27 00:41:18 montorserver monitoring-dashboard[837757]: 12:41:18 AM [routes] Veeam config saved. Restart server to apply changes.
+Dec 27 00:41:18 montorserver monitoring-dashboard[837757]: 12:41:18 AM [express] POST /api/veeam/config 200 in 32ms :: {"success":true,"config":{"url":"https://10.1.202.15:1239/","username":"wunderwood@hivelocity.net","password":"@DE69jew10879!wu","name":"Veeam ONE","location":"","isEnabled":true}}
+Dec 27 00:41:18 montorserver monitoring-dashboard[837757]: 12:41:18 AM [express] GET /api/veeam/config 200 in 5ms :: {"url":"https://10.1.202.15:1239/","username":"wunderwood@hivelocity.net","password":"@DE69jew10879!wu","name":"Veeam ONE","location":"","isEnabled":true}
+Dec 27 00:42:44 montorserver monitoring-dashboard[837816]: 12:42:44 AM [platform-registry] No VEEAM sites configured.
+Dec 27 00:42:57 montorserver monitoring-dashboard[837816]: 12:42:57 AM [express] GET /api/veeam/config 304 in 22ms :: {"url":"https://10.1.202.15:1239/","username":"wunderwood@hivelocity.net","password":"@DE69jew10879!wu","name":"Veeam ONE","location":"","isEnabled":true}
+Dec 27 00:42:59 montorserver monitoring-dashboard[837816]: 12:42:59 AM [veeam-client] Authenticating with Veeam ONE: https://10.1.202.15:1239
+Dec 27 00:43:01 montorserver monitoring-dashboard[837816]: 12:43:01 AM [veeam-client] Veeam ONE authentication successful
+Dec 27 00:43:01 montorserver monitoring-dashboard[837816]: 12:43:01 AM [express] POST /api/veeam/test-connection 200 in 2451ms :: {"success":true,"message":"Successfully connected to Veeam ONE"}
+Dec 27 00:43:07 montorserver monitoring-dashboard[837816]: 12:43:07 AM [express] GET /api/veeam/backup-by-org 304 in 1ms :: {"configured":false,"organizations":{}}
+Dec 27 00:44:24 montorserver monitoring-dashboard[837844]: 12:44:24 AM [platform-registry] No VEEAM sites configured.
+Dec 27 00:44:26 montorserver monitoring-dashboard[837844]: 12:44:26 AM [express] GET /api/veeam/backup-by-org 304 in 1ms :: {"configured":false,"organizations":{}}
+Dec 27 00:45:26 montorserver monitoring-dashboard[837844]: 12:45:26 AM [express] GET /api/veeam/summary 200 in 3ms :: {"configured":false,"message":"No Veeam ONE sites configured","sites":[],"totals":{"protectedVmCount":0,"unprotectedVmCount":0,"totalVmCount":0,"protectionPercentage":0,"repositoryCapacityGB":0,"repositoryUsedGB":0,"repositoryFreeGB":0}}
+Dec 27 00:46:31 montorserver monitoring-dashboard[837844]: 12:46:31 AM [express] GET /api/veeam/backup-by-org 200 in 2ms :: {"configured":false,"organizations":{}}
+Dec 27 00:50:13 montorserver monitoring-dashboard[837844]: 12:50:13 AM [express] GET /api/veeam/backup-by-org 304 in 1ms :: {"configured":false,"organizations":{}}
+Dec 27 00:50:28 montorserver monitoring-dashboard[837844]: 12:50:28 AM [express] GET /api/veeam/summary 200 in 1ms :: {"configured":false,"message":"No Veeam ONE sites configured","sites":[],"totals":{"protectedVmCount":0,"unprotectedVmCount":0,"totalVmCount":0,"protectionPercentage":0,"repositoryCapacityGB":0,"repositoryUsedGB":0,"repositoryFreeGB":0}}
+Dec 27 00:50:42 montorserver monitoring-dashboard[837844]: 12:50:42 AM [express] GET /api/veeam/config 304 in 22ms :: {"url":"https://10.1.202.15:1239/","username":"wunderwood@hivelocity.net","password":"@DE69jew10879!wu","name":"Veeam ONE","location":"","isEnabled":true}
+Dec 27 00:50:43 montorserver monitoring-dashboard[837844]: 12:50:43 AM [veeam-client] Authenticating with Veeam ONE: https://10.1.202.15:1239
+Dec 27 00:50:46 montorserver monitoring-dashboard[837844]: 12:50:46 AM [veeam-client] Veeam ONE authentication successful
+Dec 27 00:50:46 montorserver monitoring-dashboard[837844]: 12:50:46 AM [express] POST /api/veeam/test-connection 200 in 2353ms :: {"success":true,"message":"Successfully connected to Veeam ONE"}
+Dec 27 00:50:59 montorserver monitoring-dashboard[837844]: 12:50:59 AM [veeam-client] Authenticating with Veeam ONE: https://10.1.202.15:1239
+Dec 27 00:50:59 montorserver monitoring-dashboard[837844]: 12:50:59 AM [veeam-client] Veeam ONE authentication successful
+Dec 27 00:50:59 montorserver monitoring-dashboard[837844]: 12:50:59 AM [express] POST /api/veeam/test-connection 200 in 84ms :: {"success":true,"message":"Successfully connected to Veeam ONE"}
+hivelocity@montorserver:/opt/monitoring-dashboard$
