@@ -585,34 +585,43 @@ export async function registerRoutes(
       log(`Total unique protected VM names from Veeam: ${protectedVmNames.size}`, 'routes');
 
       // For each VCD site, get VMs per org and match with Veeam
-      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }> = {};
+      // Key by orgName (lowercase) to aggregate multiple VDCs per org
+      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number; vdcCount: number }> = {};
+      let totalVmsChecked = 0;
+      let totalVmsProtected = 0;
 
-      for (const { client } of vcdClients) {
+      for (const { id: siteId, client } of vcdClients) {
         try {
-          const tenants = await client.getTenants();
+          const tenants = await client.getTenantAllocations();
+          log(`Processing ${tenants.length} VDCs from site ${siteId} for backup matching`, 'routes');
           
           for (const tenant of tenants) {
-            const orgKey = tenant.orgName?.toLowerCase() || tenant.id;
+            // Use orgName (lowercase) as key to aggregate VDCs from same org
+            const orgKey = (tenant.orgName || tenant.id).toLowerCase();
             
             if (!orgMetrics[orgKey]) {
-              orgMetrics[orgKey] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0 };
+              orgMetrics[orgKey] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0, vdcCount: 0 };
             }
-            
-            // Get VM names for this VDC and check which are protected
-            const vmCount = tenant.vmResources?.vmCount || 0;
-            orgMetrics[orgKey].totalVmCount += vmCount;
+            orgMetrics[orgKey].vdcCount++;
             
             // Try to get actual VM names for this VDC to match with Veeam
             try {
               const vdcVms = await client.getVmsForVdc(tenant.id);
+              orgMetrics[orgKey].totalVmCount += vdcVms.length;
+              totalVmsChecked += vdcVms.length;
+              
               for (const vm of vdcVms) {
                 const vmName = (vm.name || '').toLowerCase();
                 if (vmName && protectedVmNames.has(vmName)) {
                   orgMetrics[orgKey].protectedVmCount++;
+                  totalVmsProtected++;
                 }
               }
-            } catch {
-              // If we can't get individual VMs, use estimate based on total count
+            } catch (vmError: any) {
+              // Fallback to VM count from tenant allocation
+              const fallbackCount = tenant.vmCount || 0;
+              orgMetrics[orgKey].totalVmCount += fallbackCount;
+              log(`Could not fetch VMs for VDC ${tenant.id}, using count: ${fallbackCount}`, 'routes');
             }
           }
         } catch (error: any) {
@@ -620,9 +629,9 @@ export async function registerRoutes(
         }
       }
 
-      // Log results
+      // Log summary
       const orgsWithBackups = Object.entries(orgMetrics).filter(([, m]) => m.protectedVmCount > 0);
-      log(`Backup matching complete: ${orgsWithBackups.length} orgs with protected VMs`, 'routes');
+      log(`Backup matching: ${totalVmsChecked} VMs checked, ${totalVmsProtected} protected, ${orgsWithBackups.length}/${Object.keys(orgMetrics).length} orgs with backups`, 'routes');
 
       res.json({
         configured: true,
