@@ -22,6 +22,28 @@ export async function registerRoutes(
   } catch (error) {
     log(`Warning: Could not load sites from database: ${error}`, 'routes');
   }
+  
+  // Load Veeam ONE config from globalConfig
+  try {
+    const veeamConfigJson = await storage.getGlobalConfig('veeam_config');
+    if (veeamConfigJson) {
+      const veeamConfig = JSON.parse(veeamConfigJson);
+      if (veeamConfig.url && veeamConfig.username && veeamConfig.password) {
+        platformRegistry.addSiteFromConfig({
+          siteId: 'VEEAM_GLOBAL',
+          platformType: 'veeam',
+          name: veeamConfig.name || 'Veeam ONE',
+          location: veeamConfig.location || '',
+          url: veeamConfig.url,
+          username: veeamConfig.username,
+          password: veeamConfig.password,
+        });
+        log(`Loaded Veeam ONE configuration from database`, 'routes');
+      }
+    }
+  } catch (error) {
+    log(`Warning: Could not load Veeam config: ${error}`, 'routes');
+  }
 
   /**
    * GET /api/sites
