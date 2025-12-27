@@ -248,9 +248,20 @@ export class VeeamOneClient implements PlatformClient {
     try {
       const protectedVMs = await this.getProtectedVMs();
       
+      // Log first VM's full structure for debugging
+      if (protectedVMs.length > 0) {
+        const sampleVm = protectedVMs[0];
+        log(`VM keys: ${Object.keys(sampleVm).join(', ')}`);
+        log(`Sample VM data: ${JSON.stringify(sampleVm).substring(0, 1000)}`);
+      }
+      
+      let skippedCount = 0;
       for (const vm of protectedVMs) {
         const orgName = this.extractOrgFromVM(vm);
-        if (!orgName) continue;
+        if (!orgName) {
+          skippedCount++;
+          continue;
+        }
         
         const status = vm.protectionStatus?.toLowerCase() || '';
         const isProtected = vm.isProtected === true || 
@@ -272,7 +283,7 @@ export class VeeamOneClient implements PlatformClient {
         metrics.backupSizeGB += backupSize;
       }
       
-      log(`Backup metrics by org: ${orgMetrics.size} organizations found`);
+      log(`Backup metrics by org: ${orgMetrics.size} organizations found, ${skippedCount} VMs skipped (no org)`);
     } catch (error) {
       log(`Error getting backup metrics by org: ${error}`);
     }
