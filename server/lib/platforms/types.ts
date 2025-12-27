@@ -56,6 +56,7 @@ export interface TenantAllocation {
   orgFullName?: string;   // Organization full display name (customer name)
   description?: string;
   status: string;
+  allocationType?: string; // VDC allocation model (AllocationVApp, AllocationPool, ReservationPool, Flex)
   cpu: ResourceMetrics;
   memory: ResourceMetrics;
   storage: StorageMetrics;

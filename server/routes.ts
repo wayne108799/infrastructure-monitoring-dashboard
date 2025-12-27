@@ -176,6 +176,7 @@ export async function registerRoutes(
         name: tenant.name,
         orgName: tenant.orgName,
         orgFullName: tenant.orgFullName,
+        allocationType: tenant.allocationType,
         description: tenant.description,
         status: tenant.status === 'active' ? 1 : 0,
         computeCapacity: {

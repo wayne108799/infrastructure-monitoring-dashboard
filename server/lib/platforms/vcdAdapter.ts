@@ -256,6 +256,7 @@ export class VcdAdapter implements PlatformClient {
       orgFullName: vdc.orgFullName || vdc.org?.displayName || vdc.org?.name,
       description: vdc.description,
       status: vdc.status === 1 ? 'active' : 'inactive',
+      allocationType: vdc.allocationType || vdc.allocationModel,
       cpu: {
         capacity: vdc.computeCapacity?.cpu?.limit || vdc.computeCapacity?.cpu?.allocated || 0,
         allocated: vdc.computeCapacity?.cpu?.allocated || 0,
