@@ -174,17 +174,26 @@ export async function registerRoutes(
       const vdcs = tenants.map(tenant => ({
         id: tenant.id,
         name: tenant.name,
+        orgName: tenant.orgName,
+        orgFullName: tenant.orgFullName,
         description: tenant.description,
         status: tenant.status === 'active' ? 1 : 0,
         computeCapacity: {
           cpu: tenant.cpu,
           memory: tenant.memory,
         },
-        storageProfiles: [{
-          name: 'Storage',
-          limit: tenant.storage.limit,
-          used: tenant.storage.used,
-        }],
+        storageProfiles: tenant.storageTiers && tenant.storageTiers.length > 0 
+          ? tenant.storageTiers.map(tier => ({
+              id: tier.name,
+              name: tier.name,
+              limit: tier.limit,
+              used: tier.used,
+            }))
+          : [{
+              name: 'Storage',
+              limit: tenant.storage.limit,
+              used: tenant.storage.used,
+            }],
         vmResources: {
           vmCount: tenant.vmCount,
           runningVmCount: tenant.runningVmCount,
