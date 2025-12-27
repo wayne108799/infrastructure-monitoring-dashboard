@@ -118,12 +118,17 @@ export class VeeamOneClient implements PlatformClient {
   }
 
   async testConnection(): Promise<boolean> {
+    await this.getToken();
+    return true;
+  }
+
+  async testConnectionWithError(): Promise<{ success: boolean; error?: string }> {
     try {
       await this.getToken();
-      return true;
-    } catch (error) {
-      log(`Connection test failed: ${error}`);
-      return false;
+      return { success: true };
+    } catch (error: any) {
+      log(`Connection test failed: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 

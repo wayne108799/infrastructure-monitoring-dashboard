@@ -410,16 +410,16 @@ export async function registerRoutes(
         location: '',
       });
       
-      const isConnected = await testClient.testConnection();
+      const result = await testClient.testConnectionWithError();
       
-      if (isConnected) {
+      if (result.success) {
         res.json({ success: true, message: 'Successfully connected to Veeam ONE' });
       } else {
-        res.json({ success: false, error: 'Could not connect to Veeam ONE' });
+        res.json({ success: false, error: result.error || 'Could not connect to Veeam ONE' });
       }
     } catch (error: any) {
       log(`Error testing Veeam connection: ${error.message}`, 'routes');
-      res.json({ success: false, error: error.message });
+      res.json({ success: false, error: `Connection failed: ${error.message}` });
     }
   });
 
