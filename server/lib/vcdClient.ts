@@ -471,6 +471,47 @@ export class VcdClient {
   }
 
   /**
+   * Get VM names for a VDC (for backup matching)
+   */
+  async getVmsForVdc(vdcId: string): Promise<Array<{ name: string; id: string }>> {
+    try {
+      const uuid = this.extractUuid(vdcId);
+      
+      // Try adminVM query first
+      try {
+        const encodedFilter = encodeURIComponent(`vdc==${uuid}`);
+        const response = await this.request<{ record?: any[] }>(
+          `/api/query?type=adminVM&format=records&filter=${encodedFilter}&fields=name,href,isVAppTemplate`
+        );
+        
+        const vms = (response.record || []).filter((vm: any) => 
+          vm.isVAppTemplate !== true && vm.isVAppTemplate !== 'true'
+        );
+        
+        return vms.map((vm: any) => ({
+          name: vm.name || '',
+          id: vm.href || ''
+        }));
+      } catch {
+        // Fallback to CloudAPI
+        const cloudApiFilter = encodeURIComponent(`orgVdc.id==${vdcId}`);
+        const cloudApiResponse = await this.request<{ values?: any[] }>(
+          `/cloudapi/1.0.0/vms?filter=${cloudApiFilter}&pageSize=1000`
+        );
+        
+        const vms = (cloudApiResponse.values || []).filter((vm: any) => !vm.isVAppTemplate);
+        return vms.map((vm: any) => ({
+          name: vm.name || '',
+          id: vm.id || ''
+        }));
+      }
+    } catch (error) {
+      log(`Error fetching VMs for VDC ${vdcId}: ${error}`, 'vcd-client');
+      return [];
+    }
+  }
+
+  /**
    * Get storage profiles for a VDC by fetching each profile directly
    */
   async getVdcStorageProfiles(vdcDetails: any): Promise<any[]> {

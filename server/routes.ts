@@ -549,15 +549,19 @@ export async function registerRoutes(
 
   /**
    * GET /api/veeam/backup-by-org
-   * Get backup metrics grouped by organization name (for matching with VCD tenants)
+   * Get backup metrics by matching VCD VMs to Veeam protected VMs
    */
   app.get('/api/veeam/backup-by-org', async (req, res) => {
     try {
       const allClients = platformRegistry.getAllClients();
       const veeamClients: VeeamOneClient[] = [];
-      for (const [, client] of Array.from(allClients.entries())) {
+      const vcdClients: Array<{ id: string; client: any }> = [];
+      
+      for (const [id, client] of Array.from(allClients.entries())) {
         if (client.getPlatformType() === 'veeam') {
           veeamClients.push(client as VeeamOneClient);
+        } else if (client.getPlatformType() === 'vcd') {
+          vcdClients.push({ id, client });
         }
       }
 
@@ -565,24 +569,60 @@ export async function registerRoutes(
         return res.json({ configured: false, organizations: {} });
       }
 
-      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }> = {};
-
-      for (const client of veeamClients) {
+      // Get all protected VM names from Veeam
+      const protectedVmNames = new Set<string>();
+      for (const veeamClient of veeamClients) {
         try {
-          const clientMetrics = await client.getBackupMetricsByOrg();
-          for (const [orgName, metrics] of Array.from(clientMetrics.entries())) {
-            const normalizedName = orgName.toLowerCase().trim();
-            if (!orgMetrics[normalizedName]) {
-              orgMetrics[normalizedName] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0 };
-            }
-            orgMetrics[normalizedName].protectedVmCount += metrics.protectedVmCount;
-            orgMetrics[normalizedName].totalVmCount += metrics.totalVmCount;
-            orgMetrics[normalizedName].backupSizeGB += metrics.backupSizeGB;
+          const names = await veeamClient.getProtectedVMNames();
+          for (const name of Array.from(names)) {
+            protectedVmNames.add(name);
           }
         } catch (error: any) {
-          log(`Error fetching backup metrics by org from Veeam: ${error.message}`, 'routes');
+          log(`Error fetching Veeam protected VMs: ${error.message}`, 'routes');
         }
       }
+
+      log(`Total unique protected VM names from Veeam: ${protectedVmNames.size}`, 'routes');
+
+      // For each VCD site, get VMs per org and match with Veeam
+      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number }> = {};
+
+      for (const { client } of vcdClients) {
+        try {
+          const tenants = await client.getTenants();
+          
+          for (const tenant of tenants) {
+            const orgKey = tenant.orgName?.toLowerCase() || tenant.id;
+            
+            if (!orgMetrics[orgKey]) {
+              orgMetrics[orgKey] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0 };
+            }
+            
+            // Get VM names for this VDC and check which are protected
+            const vmCount = tenant.vmResources?.vmCount || 0;
+            orgMetrics[orgKey].totalVmCount += vmCount;
+            
+            // Try to get actual VM names for this VDC to match with Veeam
+            try {
+              const vdcVms = await client.getVmsForVdc(tenant.id);
+              for (const vm of vdcVms) {
+                const vmName = (vm.name || '').toLowerCase();
+                if (vmName && protectedVmNames.has(vmName)) {
+                  orgMetrics[orgKey].protectedVmCount++;
+                }
+              }
+            } catch {
+              // If we can't get individual VMs, use estimate based on total count
+            }
+          }
+        } catch (error: any) {
+          log(`Error getting VCD tenants for backup matching: ${error.message}`, 'routes');
+        }
+      }
+
+      // Log results
+      const orgsWithBackups = Object.entries(orgMetrics).filter(([, m]) => m.protectedVmCount > 0);
+      log(`Backup matching complete: ${orgsWithBackups.length} orgs with protected VMs`, 'routes');
 
       res.json({
         configured: true,

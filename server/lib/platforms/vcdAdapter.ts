@@ -226,6 +226,13 @@ export class VcdAdapter implements PlatformClient {
     }
   }
 
+  /**
+   * Get VMs for a specific VDC (for backup matching)
+   */
+  async getVmsForVdc(vdcId: string): Promise<Array<{ name: string; id: string }>> {
+    return this.client.getVmsForVdc(vdcId);
+  }
+
   private mapVdcToTenantAllocation(vdc: any): TenantAllocation {
     // Calculate storage totals and build tier breakdown
     let storageCapacity = 0, storageUsed = 0;

@@ -306,13 +306,20 @@ export class VeeamOneClient implements PlatformClient {
       }
     }
     
-    const name = vm.name || '';
-    const match = name.match(/^([^-_]+)[-_]/);
-    if (match) {
-      return match[1];
-    }
-    
     return null;
+  }
+
+  // Get all protected VM names for matching with VCD
+  async getProtectedVMNames(): Promise<Set<string>> {
+    const vms = await this.getProtectedVMs();
+    const names = new Set<string>();
+    for (const vm of vms) {
+      if (vm.name) {
+        names.add(vm.name.toLowerCase());
+      }
+    }
+    log(`Got ${names.size} unique protected VM names from Veeam`);
+    return names;
   }
 
   async getVeeamSummary(): Promise<VeeamSiteSummary> {
