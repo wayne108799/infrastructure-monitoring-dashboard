@@ -137,7 +137,9 @@ export default function Dashboard() {
     retry: false,
   });
 
+  const CPU_OVERCOMMIT_RATIO = 3; // 3:1 overcommit ratio
   const toVcpu = (mhz: number) => Math.round(mhz / 2800); // 2800 MHz per vCPU
+  const toAllocatableVcpu = (mhz: number) => Math.round((mhz / 2800) * CPU_OVERCOMMIT_RATIO); // With 3:1 overcommit
   const toGB = (mb: number) => Math.round(mb / 1024);
   const toTB = (mb: number) => parseFloat((mb / 1024 / 1024).toFixed(1));
 
@@ -428,8 +430,8 @@ export default function Dashboard() {
                         <PieChart>
                           <Pie
                             data={[
-                              { name: 'Used', value: Math.min(toVcpu(summary!.cpu.used), toVcpu(summary!.cpu.capacity)), fill: '#22c55e' },
-                              { name: 'Available', value: Math.max(0, toVcpu(summary!.cpu.capacity) - toVcpu(summary!.cpu.used)), fill: '#64748b' },
+                              { name: 'Used', value: Math.min(toVcpu(summary!.cpu.used), toAllocatableVcpu(summary!.cpu.capacity)), fill: '#22c55e' },
+                              { name: 'Available', value: Math.max(0, toAllocatableVcpu(summary!.cpu.capacity) - toVcpu(summary!.cpu.used)), fill: '#64748b' },
                             ]}
                             cx="50%"
                             cy="50%"
@@ -445,10 +447,10 @@ export default function Dashboard() {
                       </ResponsiveContainer>
                     </div>
                     <div className="text-center text-sm text-muted-foreground mt-2">
-                      <span className="font-mono">{toVcpu(summary!.cpu.used)}</span> / <span className="font-mono">{toVcpu(summary!.cpu.capacity)}</span> vCPU
+                      <span className="font-mono">{toVcpu(summary!.cpu.used)}</span> / <span className="font-mono">{toAllocatableVcpu(summary!.cpu.capacity)}</span> vCPU
                     </div>
                     <div className="text-center text-xs text-muted-foreground">
-                      Allocated: <span className="font-mono text-cyan-500">{toVcpu(summary!.cpu.allocated)} vCPU</span>
+                      3:1 Allocatable <span className="text-muted-foreground/70">({toVcpu(summary!.cpu.capacity)} physical)</span>
                     </div>
                   </CardContent>
                 </Card>
