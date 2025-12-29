@@ -514,45 +514,57 @@ export default function Dashboard() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Database className="h-4 w-4 text-emerald-500" />
-                      Storage
+                      Storage by Tier
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {(() => {
-                      const configuredCapacity = getConfiguredStorageCapacity(site.id);
-                      const storageCapacity = configuredCapacity ?? summary!.storage.capacity;
-                      const storageUsed = summary!.storage.used;
-                      const storageAvailable = Math.max(0, storageCapacity - storageUsed);
-                      const isConfigured = configuredCapacity !== null;
+                      const tiers = summary!.storageTiers || [];
+                      const configs = storageConfigs[site.id] || [];
+                      const tierColors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+                      
+                      if (tiers.length === 0) {
+                        const storageUsed = summary!.storage.used;
+                        const storageCapacity = summary!.storage.capacity;
+                        return (
+                          <div className="text-center text-sm text-muted-foreground py-8">
+                            <span className="font-mono">{toTB(storageUsed)}</span> / <span className="font-mono">{toTB(storageCapacity)}</span> TB total
+                          </div>
+                        );
+                      }
                       
                       return (
-                        <>
-                          <div className="h-[200px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={[
-                                    { name: 'Used', value: toTB(storageUsed), fill: '#10b981' },
-                                    { name: 'Available', value: toTB(storageAvailable), fill: '#64748b' },
-                                  ]}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={50}
-                                  outerRadius={70}
-                                  paddingAngle={2}
-                                  dataKey="value"
-                                >
-                                </Pie>
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                          <div className="text-center text-sm text-muted-foreground mt-2">
-                            <span className="font-mono">{toTB(storageUsed)}</span> / <span className="font-mono">{toTB(storageCapacity)}</span> TB
-                            {isConfigured && <span className="text-xs text-emerald-500 ml-1">(configured)</span>}
-                          </div>
-                        </>
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto">
+                          {tiers.map((tier, idx) => {
+                            const config = configs.find(c => c.tierName === tier.name);
+                            const capacity = config ? config.usableCapacityGB * 1024 : tier.capacity;
+                            const usedPct = capacity > 0 ? Math.min(100, (tier.used / capacity) * 100) : 0;
+                            const color = tierColors[idx % tierColors.length];
+                            
+                            return (
+                              <div key={tier.name} className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="font-medium truncate max-w-[120px]" title={tier.name}>
+                                    {tier.name}
+                                  </span>
+                                  <span className="text-muted-foreground font-mono">
+                                    {toTB(tier.used)} / {toTB(capacity)} TB
+                                    {config && <span className="text-emerald-500 ml-1">*</span>}
+                                  </span>
+                                </div>
+                                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full rounded-full transition-all"
+                                    style={{ 
+                                      width: `${usedPct}%`, 
+                                      backgroundColor: usedPct > 90 ? '#ef4444' : usedPct > 75 ? '#f59e0b' : color 
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       );
                     })()}
                   </CardContent>
