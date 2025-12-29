@@ -137,7 +137,7 @@ export default function Dashboard() {
     retry: false,
   });
 
-  const toGHz = (mhz: number) => Math.round(mhz / 1000);
+  const toVcpu = (mhz: number) => Math.round(mhz / 2800); // 2800 MHz per vCPU
   const toGB = (mb: number) => Math.round(mb / 1024);
   const toTB = (mb: number) => parseFloat((mb / 1024 / 1024).toFixed(1));
 
@@ -439,8 +439,8 @@ export default function Dashboard() {
                         <PieChart>
                           <Pie
                             data={[
-                              { name: 'Used', value: toGHz(summary!.cpu.used), fill: '#22c55e' },
-                              { name: 'Available', value: Math.max(0, toGHz(summary!.cpu.capacity) - toGHz(summary!.cpu.used)), fill: '#64748b' },
+                              { name: 'Used', value: toVcpu(summary!.cpu.used), fill: '#22c55e' },
+                              { name: 'Available', value: Math.max(0, toVcpu(summary!.cpu.capacity) - toVcpu(summary!.cpu.used)), fill: '#64748b' },
                             ]}
                             cx="50%"
                             cy="50%"
@@ -456,10 +456,10 @@ export default function Dashboard() {
                       </ResponsiveContainer>
                     </div>
                     <div className="text-center text-sm text-muted-foreground mt-2">
-                      <span className="font-mono">{toGHz(summary!.cpu.used)}</span> / <span className="font-mono">{toGHz(summary!.cpu.capacity)}</span> GHz
+                      <span className="font-mono">{toVcpu(summary!.cpu.used)}</span> / <span className="font-mono">{toVcpu(summary!.cpu.capacity)}</span> vCPU
                     </div>
                     <div className="text-center text-xs text-muted-foreground">
-                      Allocated: <span className="font-mono text-cyan-500">{toGHz(summary!.cpu.allocated)} GHz</span>
+                      Allocated: <span className="font-mono text-cyan-500">{toVcpu(summary!.cpu.allocated)} vCPU</span>
                     </div>
                   </CardContent>
                 </Card>
