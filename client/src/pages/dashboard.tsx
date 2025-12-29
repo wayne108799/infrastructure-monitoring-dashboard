@@ -365,17 +365,6 @@ export default function Dashboard() {
                   {/* Management Links - inline badges */}
                   {site.managementLinks && (
                     <>
-                      {site.managementLinks.vcd && (
-                        <a 
-                          href={site.managementLinks.vcd.startsWith('http') ? site.managementLinks.vcd : `https://${site.managementLinks.vcd}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs px-2 py-0.5 rounded border border-blue-500 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1"
-                          data-testid={`link-vcd-${site.id}`}
-                        >
-                          <ExternalLink className="h-3 w-3" /> VCD
-                        </a>
-                      )}
                       {site.managementLinks.vcenter && (
                         <a 
                           href={site.managementLinks.vcenter.startsWith('http') ? site.managementLinks.vcenter : `https://${site.managementLinks.vcenter}`}
