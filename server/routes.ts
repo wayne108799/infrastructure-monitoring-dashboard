@@ -4,6 +4,7 @@ import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
+import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime } from "./lib/pollingService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -65,15 +66,37 @@ export async function registerRoutes(
         sites = sites.filter(s => s.platformType === platform);
       }
 
-      const siteList = sites.map(({ id, platformType, info }) => ({
-        id: info.id,
-        compositeId: id,
-        name: info.name,
-        location: info.location,
-        url: info.url,
-        platformType,
-        status: info.status,
-      }));
+      // Get management links from database
+      const dbSites = await storage.getAllPlatformSites();
+      const linksMap = new Map<string, any>();
+      for (const dbSite of dbSites) {
+        linksMap.set(dbSite.siteId, {
+          vcenterUrl: dbSite.vcenterUrl,
+          nsxUrl: dbSite.nsxUrl,
+          ariaUrl: dbSite.ariaUrl,
+          veeamUrl: dbSite.veeamUrl,
+        });
+      }
+
+      const siteList = sites.map(({ id, platformType, info }) => {
+        const links = linksMap.get(info.id) || {};
+        return {
+          id: info.id,
+          compositeId: id,
+          name: info.name,
+          location: info.location,
+          url: info.url,
+          platformType,
+          status: info.status,
+          managementLinks: {
+            vcd: info.url,
+            vcenter: links.vcenterUrl || null,
+            nsx: links.nsxUrl || null,
+            aria: links.ariaUrl || null,
+            veeam: links.veeamUrl || null,
+          },
+        };
+      });
 
       res.json(siteList);
     } catch (error: any) {
@@ -103,6 +126,76 @@ export async function registerRoutes(
       res.json(platformInfo);
     } catch (error: any) {
       log(`Error fetching platforms: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/polling/status
+   * Get polling status and last poll time
+   */
+  app.get('/api/polling/status', async (req, res) => {
+    try {
+      const lastPollTime = await getLastPollTime();
+      res.json({
+        lastPollTime,
+        pollingIntervalHours: 4,
+        nextPollTime: lastPollTime 
+          ? new Date(lastPollTime.getTime() + 4 * 60 * 60 * 1000)
+          : null,
+      });
+    } catch (error: any) {
+      log(`Error fetching polling status: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/polling/trigger
+   * Manually trigger a poll cycle
+   */
+  app.post('/api/polling/trigger', async (req, res) => {
+    try {
+      log('Manual poll triggered', 'routes');
+      pollAllSites().catch(err => log(`Poll error: ${err.message}`, 'routes'));
+      res.json({ success: true, message: 'Poll cycle started' });
+    } catch (error: any) {
+      log(`Error triggering poll: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/polling/site/:siteId/summary
+   * Get cached site summary from last poll
+   */
+  app.get('/api/polling/site/:siteId/summary', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const summary = await getLatestSiteSummary(siteId);
+      
+      if (!summary) {
+        return res.status(404).json({ error: 'No cached data available for this site' });
+      }
+      
+      res.json(summary);
+    } catch (error: any) {
+      log(`Error fetching cached summary: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/polling/site/:siteId/tenants
+   * Get cached tenant allocations from last poll
+   */
+  app.get('/api/polling/site/:siteId/tenants', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const tenants = await getLatestTenantAllocations(siteId);
+      res.json(tenants);
+    } catch (error: any) {
+      log(`Error fetching cached tenants: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

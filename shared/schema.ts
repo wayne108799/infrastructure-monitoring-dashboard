@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, jsonb, integer, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -31,6 +31,11 @@ export const platformSites = pgTable("platform_sites", {
   secretKey: text("secret_key"),
   realm: text("realm"),
   isEnabled: boolean("is_enabled").default(true),
+  // Management console links
+  vcenterUrl: text("vcenter_url"),
+  nsxUrl: text("nsx_url"),
+  ariaUrl: text("aria_url"),
+  veeamUrl: text("veeam_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -87,3 +92,52 @@ export const globalConfig = pgTable("global_config", {
 });
 
 export type GlobalConfig = typeof globalConfig.$inferSelect;
+
+// Site poll snapshots - stores aggregated site metrics from each poll
+export const sitePollSnapshots = pgTable("site_poll_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: text("site_id").notNull(),
+  platformType: text("platform_type").notNull(),
+  polledAt: timestamp("polled_at").notNull().defaultNow(),
+  totalTenants: integer("total_tenants").default(0),
+  totalVms: integer("total_vms").default(0),
+  runningVms: integer("running_vms").default(0),
+  summaryData: jsonb("summary_data"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_site_poll_site_polled").on(table.siteId, table.polledAt),
+  index("idx_site_poll_polled").on(table.polledAt),
+]);
+
+export const insertSitePollSnapshotSchema = createInsertSchema(sitePollSnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertSitePollSnapshot = z.infer<typeof insertSitePollSnapshotSchema>;
+export type SitePollSnapshot = typeof sitePollSnapshots.$inferSelect;
+
+// Tenant poll snapshots - stores per-tenant metrics from each poll
+export const tenantPollSnapshots = pgTable("tenant_poll_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: text("site_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  orgName: text("org_name"),
+  orgFullName: text("org_full_name"),
+  polledAt: timestamp("polled_at").notNull().defaultNow(),
+  vmCount: integer("vm_count").default(0),
+  runningVmCount: integer("running_vm_count").default(0),
+  allocationData: jsonb("allocation_data"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_poll_site_polled").on(table.siteId, table.polledAt),
+  index("idx_tenant_poll_tenant_polled").on(table.tenantId, table.polledAt),
+]);
+
+export const insertTenantPollSnapshotSchema = createInsertSchema(tenantPollSnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTenantPollSnapshot = z.infer<typeof insertTenantPollSnapshotSchema>;
+export type TenantPollSnapshot = typeof tenantPollSnapshots.$inferSelect;
