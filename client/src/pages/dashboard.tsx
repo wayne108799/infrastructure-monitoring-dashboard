@@ -12,12 +12,14 @@ import {
   exportTenantsCSV,
   fetchPollingStatus,
   triggerPoll,
+  fetchAllStorageConfigs,
   getPlatformShortName,
   getPlatformColor,
   type Site, 
   type SiteSummary,
   type PlatformType,
-  type PollingStatus
+  type PollingStatus,
+  type SiteStorageConfig
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -136,6 +138,21 @@ export default function Dashboard() {
     refetchInterval: 60 * 1000,
     retry: false,
   });
+
+  // Fetch storage configs for all sites
+  const { data: storageConfigs = {} } = useQuery({
+    queryKey: ['allStorageConfigs'],
+    queryFn: fetchAllStorageConfigs,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Helper to get configured storage capacity for a site
+  const getConfiguredStorageCapacity = (siteId: string): number | null => {
+    const configs = storageConfigs[siteId];
+    if (!configs || configs.length === 0) return null;
+    // Sum all configured tier capacities (in GB, convert to MB for consistency)
+    return configs.reduce((total, c) => total + c.usableCapacityGB * 1024, 0);
+  };
 
   const CPU_OVERCOMMIT_RATIO = 3; // 3:1 overcommit ratio
   const toVcpu = (mhz: number) => Math.round(mhz / 2800); // 2800 MHz per vCPU
@@ -501,30 +518,43 @@ export default function Dashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={[
-                              { name: 'Used', value: toTB(summary!.storage.used), fill: '#10b981' },
-                              { name: 'Available', value: toTB(summary!.storage.available), fill: '#64748b' },
-                            ]}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={70}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                          </Pie>
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="text-center text-sm text-muted-foreground mt-2">
-                      <span className="font-mono">{toTB(summary!.storage.used)}</span> / <span className="font-mono">{toTB(summary!.storage.capacity)}</span> TB
-                    </div>
+                    {(() => {
+                      const configuredCapacity = getConfiguredStorageCapacity(site.id);
+                      const storageCapacity = configuredCapacity ?? summary!.storage.capacity;
+                      const storageUsed = summary!.storage.used;
+                      const storageAvailable = Math.max(0, storageCapacity - storageUsed);
+                      const isConfigured = configuredCapacity !== null;
+                      
+                      return (
+                        <>
+                          <div className="h-[200px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    { name: 'Used', value: toTB(storageUsed), fill: '#10b981' },
+                                    { name: 'Available', value: toTB(storageAvailable), fill: '#64748b' },
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={50}
+                                  outerRadius={70}
+                                  paddingAngle={2}
+                                  dataKey="value"
+                                >
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="text-center text-sm text-muted-foreground mt-2">
+                            <span className="font-mono">{toTB(storageUsed)}</span> / <span className="font-mono">{toTB(storageCapacity)}</span> TB
+                            {isConfigured && <span className="text-xs text-emerald-500 ml-1">(configured)</span>}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
 

@@ -8,10 +8,13 @@ import {
   type InsertTenantCommitLevel,
   type UpdateTenantCommitLevel,
   type GlobalConfig,
+  type SiteStorageConfig,
+  type InsertSiteStorageConfig,
   users,
   platformSites,
   tenantCommitLevels,
-  globalConfig
+  globalConfig,
+  siteStorageConfig
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -37,6 +40,10 @@ export interface IStorage {
   
   getGlobalConfig(key: string): Promise<string | null>;
   setGlobalConfig(key: string, value: string): Promise<void>;
+  
+  getStorageConfigBySite(siteId: string): Promise<SiteStorageConfig[]>;
+  upsertStorageConfig(config: InsertSiteStorageConfig): Promise<SiteStorageConfig>;
+  deleteStorageConfig(siteId: string, tierName: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -145,6 +152,40 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db.insert(globalConfig).values({ key, value });
     }
+  }
+
+  async getStorageConfigBySite(siteId: string): Promise<SiteStorageConfig[]> {
+    return db.select().from(siteStorageConfig).where(eq(siteStorageConfig.siteId, siteId));
+  }
+
+  async upsertStorageConfig(config: InsertSiteStorageConfig): Promise<SiteStorageConfig> {
+    const [existing] = await db.select().from(siteStorageConfig).where(
+      and(
+        eq(siteStorageConfig.siteId, config.siteId),
+        eq(siteStorageConfig.tierName, config.tierName)
+      )
+    );
+    if (existing) {
+      const [updated] = await db
+        .update(siteStorageConfig)
+        .set({ usableCapacityGB: config.usableCapacityGB, updatedAt: new Date() })
+        .where(eq(siteStorageConfig.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(siteStorageConfig).values(config).returning();
+      return created;
+    }
+  }
+
+  async deleteStorageConfig(siteId: string, tierName: string): Promise<boolean> {
+    await db.delete(siteStorageConfig).where(
+      and(
+        eq(siteStorageConfig.siteId, siteId),
+        eq(siteStorageConfig.tierName, tierName)
+      )
+    );
+    return true;
   }
 }
 

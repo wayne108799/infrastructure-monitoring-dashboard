@@ -36,10 +36,13 @@ import {
   fetchVeeamConfig,
   saveVeeamConfig,
   testVeeamConnection,
+  fetchStorageConfig,
+  saveStorageConfig,
   type PlatformSiteConfig,
   type CreatePlatformSiteConfig,
   type PlatformType,
-  type VeeamConfig
+  type VeeamConfig,
+  type SiteStorageConfig
 } from '@/lib/api';
 
 function getPlatformIcon(type: PlatformType) {
@@ -114,6 +117,13 @@ export default function Settings() {
   });
   const [testingVeeam, setTestingVeeam] = useState(false);
   const [savingVeeam, setSavingVeeam] = useState(false);
+  
+  // Storage config state
+  const [storageConfigSite, setStorageConfigSite] = useState<PlatformSiteConfig | null>(null);
+  const [storageConfigs, setStorageConfigs] = useState<SiteStorageConfig[]>([]);
+  const [newTierName, setNewTierName] = useState('');
+  const [newTierCapacity, setNewTierCapacity] = useState('');
+  const [savingStorage, setSavingStorage] = useState(false);
 
   const { data: sites = [], isLoading } = useQuery({
     queryKey: ['configuredSites'],
@@ -340,6 +350,51 @@ export default function Settings() {
     } finally {
       setTestingVeeam(false);
     }
+  };
+
+  // Storage config handlers
+  const handleOpenStorageConfig = async (site: PlatformSiteConfig) => {
+    setStorageConfigSite(site);
+    setNewTierName('');
+    setNewTierCapacity('');
+    try {
+      const configs = await fetchStorageConfig(site.siteId);
+      setStorageConfigs(configs);
+    } catch (error) {
+      setStorageConfigs([]);
+    }
+  };
+
+  const handleSaveStorageTier = async () => {
+    if (!storageConfigSite || !newTierName || !newTierCapacity) return;
+    
+    setSavingStorage(true);
+    try {
+      await saveStorageConfig(storageConfigSite.siteId, newTierName, parseInt(newTierCapacity, 10));
+      const configs = await fetchStorageConfig(storageConfigSite.siteId);
+      setStorageConfigs(configs);
+      setNewTierName('');
+      setNewTierCapacity('');
+      toast({
+        title: 'Storage Tier Saved',
+        description: `Usable capacity for ${newTierName} has been set to ${newTierCapacity} GB.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingStorage(false);
+    }
+  };
+
+  const handleCloseStorageConfig = () => {
+    setStorageConfigSite(null);
+    setStorageConfigs([]);
+    setNewTierName('');
+    setNewTierCapacity('');
   };
 
   const renderCredentialFields = () => {
@@ -735,6 +790,16 @@ export default function Settings() {
                         <span className="ml-2">Test</span>
                       </Button>
                       
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenStorageConfig(site)}
+                        data-testid={`button-storage-${site.siteId}`}
+                        title="Configure Storage Capacity"
+                      >
+                        <HardDrive className="h-4 w-4" />
+                      </Button>
+                      
                       <Dialog open={editingSite?.id === site.id} onOpenChange={(open) => !open && handleCloseDialog()}>
                         <DialogTrigger asChild>
                           <Button
@@ -933,6 +998,77 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Storage Configuration Dialog */}
+        <Dialog open={!!storageConfigSite} onOpenChange={(open) => !open && handleCloseStorageConfig()}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Storage Capacity Configuration</DialogTitle>
+              <DialogDescription>
+                Set the usable storage capacity (in GB) for each storage tier in {storageConfigSite?.name}.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Existing configurations */}
+              {storageConfigs.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Configured Tiers</Label>
+                  <div className="space-y-2">
+                    {storageConfigs.map((config) => (
+                      <div key={config.id} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                        <span className="font-medium">{config.tierName}</span>
+                        <span className="font-mono text-sm">{config.usableCapacityGB} GB</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Add new tier */}
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium">Add/Update Storage Tier</Label>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="tierName" className="text-xs text-muted-foreground">Tier Name</Label>
+                    <Input
+                      id="tierName"
+                      data-testid="input-tier-name"
+                      value={newTierName}
+                      onChange={(e) => setNewTierName(e.target.value)}
+                      placeholder="e.g., HPS, SPS, VVol"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tierCapacity" className="text-xs text-muted-foreground">Usable Capacity (GB)</Label>
+                    <Input
+                      id="tierCapacity"
+                      data-testid="input-tier-capacity"
+                      type="number"
+                      value={newTierCapacity}
+                      onChange={(e) => setNewTierCapacity(e.target.value)}
+                      placeholder="e.g., 10000"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCloseStorageConfig} data-testid="button-cancel-storage">
+                Close
+              </Button>
+              <Button 
+                onClick={handleSaveStorageTier} 
+                disabled={savingStorage || !newTierName || !newTierCapacity}
+                data-testid="button-save-storage"
+              >
+                {savingStorage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Tier
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

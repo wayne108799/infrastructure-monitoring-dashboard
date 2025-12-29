@@ -1173,6 +1173,57 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/config/sites/:siteId/storage
+   * Get storage capacity configuration for a site
+   */
+  app.get('/api/config/sites/:siteId/storage', async (req, res) => {
+    try {
+      const configs = await storage.getStorageConfigBySite(req.params.siteId);
+      res.json(configs);
+    } catch (error: any) {
+      log(`Error fetching storage config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/config/sites/:siteId/storage
+   * Set storage capacity for a tier
+   */
+  app.post('/api/config/sites/:siteId/storage', async (req, res) => {
+    try {
+      const { tierName, usableCapacityGB } = req.body;
+      if (!tierName || usableCapacityGB === undefined) {
+        return res.status(400).json({ error: 'tierName and usableCapacityGB are required' });
+      }
+      
+      const config = await storage.upsertStorageConfig({
+        siteId: req.params.siteId,
+        tierName,
+        usableCapacityGB: parseInt(usableCapacityGB, 10),
+      });
+      res.json(config);
+    } catch (error: any) {
+      log(`Error saving storage config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * DELETE /api/config/sites/:siteId/storage/:tierName
+   * Delete storage capacity configuration for a tier
+   */
+  app.delete('/api/config/sites/:siteId/storage/:tierName', async (req, res) => {
+    try {
+      await storage.deleteStorageConfig(req.params.siteId, req.params.tierName);
+      res.json({ success: true });
+    } catch (error: any) {
+      log(`Error deleting storage config: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * GET /api/sites/:siteId/provisioning-resources
    * Get available resources for provisioning (Provider VDCs, storage profiles, external networks)
    */

@@ -723,3 +723,71 @@ export async function fetchBackupByOrg(): Promise<BackupByOrgResponse> {
   }
   return response.json();
 }
+
+// Storage capacity configuration
+export interface SiteStorageConfig {
+  id: string;
+  siteId: string;
+  tierName: string;
+  usableCapacityGB: number;
+  updatedAt: string;
+}
+
+/**
+ * Fetch storage configuration for a site
+ */
+export async function fetchStorageConfig(siteId: string): Promise<SiteStorageConfig[]> {
+  const response = await fetch(`/api/config/sites/${siteId}/storage`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch storage config');
+  }
+  return response.json();
+}
+
+/**
+ * Save storage capacity for a tier
+ */
+export async function saveStorageConfig(siteId: string, tierName: string, usableCapacityGB: number): Promise<SiteStorageConfig> {
+  const response = await fetch(`/api/config/sites/${siteId}/storage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tierName, usableCapacityGB }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to save storage config');
+  }
+  return response.json();
+}
+
+/**
+ * Delete storage configuration for a tier
+ */
+export async function deleteStorageConfig(siteId: string, tierName: string): Promise<void> {
+  const response = await fetch(`/api/config/sites/${siteId}/storage/${encodeURIComponent(tierName)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete storage config');
+  }
+}
+
+/**
+ * Fetch all storage configs across all sites
+ */
+export async function fetchAllStorageConfigs(): Promise<Record<string, SiteStorageConfig[]>> {
+  const sites = await fetchConfiguredSites();
+  const result: Record<string, SiteStorageConfig[]> = {};
+  
+  for (const site of sites) {
+    try {
+      const configs = await fetchStorageConfig(site.siteId);
+      if (configs.length > 0) {
+        result[site.siteId] = configs;
+      }
+    } catch (e) {
+      // Ignore errors for individual sites
+    }
+  }
+  
+  return result;
+}

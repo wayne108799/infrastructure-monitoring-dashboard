@@ -83,6 +83,25 @@ export type InsertTenantCommitLevel = z.infer<typeof insertTenantCommitLevelSche
 export type UpdateTenantCommitLevel = z.infer<typeof updateTenantCommitLevelSchema>;
 export type TenantCommitLevel = typeof tenantCommitLevels.$inferSelect;
 
+// Site storage capacity configuration - allows manual override of storage capacity per tier
+export const siteStorageConfig = pgTable("site_storage_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: text("site_id").notNull(),
+  tierName: text("tier_name").notNull(),
+  usableCapacityGB: integer("usable_capacity_gb").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_site_storage_site").on(table.siteId),
+]);
+
+export const insertSiteStorageConfigSchema = createInsertSchema(siteStorageConfig).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertSiteStorageConfig = z.infer<typeof insertSiteStorageConfigSchema>;
+export type SiteStorageConfig = typeof siteStorageConfig.$inferSelect;
+
 // Global configuration (for Veeam ONE, etc.)
 export const globalConfig = pgTable("global_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
