@@ -227,19 +227,36 @@ export default function Dashboard() {
     return null;
   };
 
-  const PlatformBadge = ({ type }: { type: PlatformType }) => (
-    <Badge 
-      variant="outline" 
-      className="text-xs font-medium"
-      style={{ 
-        borderColor: getPlatformColor(type),
-        color: getPlatformColor(type),
-      }}
-      data-testid={`badge-platform-${type}`}
-    >
-      {getPlatformShortName(type)}
-    </Badge>
-  );
+  const PlatformBadge = ({ type, url }: { type: PlatformType; url?: string }) => {
+    const badge = (
+      <Badge 
+        variant="outline" 
+        className={cn(
+          "text-xs font-medium",
+          url && "cursor-pointer hover:bg-opacity-20"
+        )}
+        style={{ 
+          borderColor: getPlatformColor(type),
+          color: getPlatformColor(type),
+          ...(url && { backgroundColor: `${getPlatformColor(type)}10` }),
+        }}
+        data-testid={`badge-platform-${type}`}
+      >
+        {url && <ExternalLink className="h-3 w-3 mr-1" />}
+        {getPlatformShortName(type)}
+      </Badge>
+    );
+
+    if (url) {
+      const href = url.startsWith('http') ? url : `https://${url}`;
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer">
+          {badge}
+        </a>
+      );
+    }
+    return badge;
+  };
 
   return (
     <DashboardLayout>
@@ -366,7 +383,6 @@ export default function Dashboard() {
                     <div key={site.id} className="flex items-center gap-1.5" data-testid={`site-status-${site.id}`}>
                       <div className={`w-2 h-2 rounded-full ${site.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
                       <span className="text-sm font-medium">{site.name}</span>
-                      <PlatformBadge type={site.platformType} />
                     </div>
                   ))}
                 </div>
@@ -380,7 +396,7 @@ export default function Dashboard() {
                 <h2 className="text-xl font-semibold flex items-center gap-2 flex-wrap">
                   <Server className="h-5 w-5 text-primary" />
                   {site.name} - {site.location}
-                  <PlatformBadge type={site.platformType} />
+                  <PlatformBadge type={site.platformType} url={site.url} />
                   {/* Management Links - inline badges */}
                   {site.managementLinks && (
                     <>
