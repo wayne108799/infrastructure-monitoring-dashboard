@@ -8,60 +8,73 @@ const POLL_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 const RETENTION_DAYS = 30;
 
 let pollIntervalId: NodeJS.Timeout | null = null;
+let isPolling = false;
 
 export async function pollAllSites(): Promise<void> {
-  const polledAt = new Date();
-  log(`Starting poll cycle at ${polledAt.toISOString()}`, 'polling');
-  
-  const allClients = platformRegistry.getAllClients();
-  
-  for (const [siteId, client] of Array.from(allClients.entries())) {
-    try {
-      const platformType = client.getPlatformType();
-      
-      // Skip Veeam for now - it's a separate system
-      if (platformType === 'veeam') continue;
-      
-      log(`Polling site ${siteId} (${platformType})...`, 'polling');
-      
-      // Get site summary
-      const summary = await client.getSiteSummary();
-      
-      // Store site snapshot
-      await db.insert(sitePollSnapshots).values({
-        siteId,
-        platformType,
-        polledAt,
-        totalTenants: summary.totalTenants || 0,
-        totalVms: summary.totalVms || 0,
-        runningVms: summary.runningVms || 0,
-        summaryData: summary as any,
-      });
-      
-      // Get tenant allocations
-      const tenants = await client.getTenantAllocations();
-      
-      // Store tenant snapshots
-      for (const tenant of tenants) {
-        await db.insert(tenantPollSnapshots).values({
-          siteId,
-          tenantId: tenant.id,
-          orgName: tenant.orgName || null,
-          orgFullName: tenant.orgFullName || null,
-          polledAt,
-          vmCount: tenant.vmCount || 0,
-          runningVmCount: tenant.runningVmCount || 0,
-          allocationData: tenant as any,
-        });
-      }
-      
-      log(`Polled site ${siteId}: ${tenants.length} tenants`, 'polling');
-    } catch (error: any) {
-      log(`Error polling site ${siteId}: ${error.message}`, 'polling');
-    }
+  // Prevent overlapping polls
+  if (isPolling) {
+    log('Poll already in progress, skipping', 'polling');
+    return;
   }
   
-  log(`Poll cycle complete`, 'polling');
+  isPolling = true;
+  const polledAt = new Date();
+  
+  try {
+    log(`Starting poll cycle at ${polledAt.toISOString()}`, 'polling');
+    
+    const allClients = platformRegistry.getAllClients();
+    
+    for (const [siteId, client] of Array.from(allClients.entries())) {
+      try {
+        const platformType = client.getPlatformType();
+        
+        // Skip Veeam for now - it's a separate system
+        if (platformType === 'veeam') continue;
+        
+        log(`Polling site ${siteId} (${platformType})...`, 'polling');
+        
+        // Get site summary and tenants
+        const summary = await client.getSiteSummary();
+        const tenants = await client.getTenantAllocations();
+        
+        // Store site snapshot
+        await db.insert(sitePollSnapshots).values({
+          siteId,
+          platformType,
+          polledAt,
+          totalTenants: summary.totalTenants || 0,
+          totalVms: summary.totalVms || 0,
+          runningVms: summary.runningVms || 0,
+          summaryData: summary as any,
+        });
+        
+        // Store tenant snapshots (batch insert)
+        if (tenants.length > 0) {
+          const tenantValues = tenants.map(tenant => ({
+            siteId,
+            tenantId: tenant.id,
+            orgName: tenant.orgName || null,
+            orgFullName: tenant.orgFullName || null,
+            polledAt,
+            vmCount: tenant.vmCount || 0,
+            runningVmCount: tenant.runningVmCount || 0,
+            allocationData: tenant as any,
+          }));
+          
+          await db.insert(tenantPollSnapshots).values(tenantValues);
+        }
+        
+        log(`Polled site ${siteId}: ${tenants.length} tenants`, 'polling');
+      } catch (error: any) {
+        log(`Error polling site ${siteId}: ${error.message}`, 'polling');
+      }
+    }
+    
+    log(`Poll cycle complete`, 'polling');
+  } finally {
+    isPolling = false;
+  }
 }
 
 export async function pruneOldSnapshots(): Promise<void> {

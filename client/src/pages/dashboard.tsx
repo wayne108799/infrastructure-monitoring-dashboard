@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter, Download, Loader2 } from 'lucide-react';
+import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter, Download, Loader2, ExternalLink, RefreshCw, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   fetchSites, 
   fetchSiteSummary, 
   fetchPlatforms,
   exportTenantsCSV,
+  fetchPollingStatus,
+  triggerPoll,
   getPlatformShortName,
   getPlatformColor,
   type Site, 
   type SiteSummary,
-  type PlatformType 
+  type PlatformType,
+  type PollingStatus
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +57,42 @@ export default function Dashboard() {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const [isPolling, setIsPolling] = useState(false);
+
+  const { data: pollingStatus, refetch: refetchPollingStatus } = useQuery({
+    queryKey: ['pollingStatus'],
+    queryFn: fetchPollingStatus,
+    staleTime: 60 * 1000,
+  });
+
+  const queryClient = useQueryClient();
+  
+  const handleTriggerPoll = async () => {
+    setIsPolling(true);
+    try {
+      await triggerPoll();
+      toast({
+        title: 'Poll Started',
+        description: 'Data collection has started. The page will refresh automatically when complete.',
+      });
+      // Wait for polling to complete, then refetch data
+      setTimeout(async () => {
+        refetchPollingStatus();
+        // Invalidate all site data to force refetch
+        queryClient.invalidateQueries({ queryKey: ['allSiteSummaries'] });
+        queryClient.invalidateQueries({ queryKey: ['sites'] });
+      }, 10000);
+    } catch (error: any) {
+      toast({
+        title: 'Poll Failed',
+        description: error.message || 'Could not trigger data poll.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPolling(false);
     }
   };
 
@@ -189,20 +228,42 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Infrastructure Overview</h1>
           <p className="text-muted-foreground mt-1">Resource utilization across all virtualization platforms.</p>
-        </div>
-        <Button 
-          onClick={handleExport} 
-          disabled={isExporting}
-          variant="outline"
-          data-testid="button-export"
-        >
-          {isExporting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
+          {pollingStatus?.lastPollTime && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Last updated: {new Date(pollingStatus.lastPollTime).toLocaleString()}
+            </p>
           )}
-          Export Tenants
-        </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleTriggerPoll} 
+            disabled={isPolling}
+            variant="outline"
+            size="sm"
+            data-testid="button-refresh-data"
+          >
+            {isPolling ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh Data
+          </Button>
+          <Button 
+            onClick={handleExport} 
+            disabled={isExporting}
+            variant="outline"
+            data-testid="button-export"
+          >
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Export Tenants
+          </Button>
+        </div>
       </div>
 
       {/* Platform Filter */}
@@ -296,11 +357,73 @@ export default function Dashboard() {
 
           {validSummaries.map(({ site, summary }) => (
             <div key={site.id} className="mb-8" data-testid={`site-section-${site.id}`}>
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Server className="h-5 w-5 text-primary" />
-                {site.name} - {site.location}
-                <PlatformBadge type={site.platformType} />
-              </h2>
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Server className="h-5 w-5 text-primary" />
+                  {site.name} - {site.location}
+                  <PlatformBadge type={site.platformType} />
+                </h2>
+                {/* Management Links */}
+                {site.managementLinks && (
+                  <div className="flex flex-wrap gap-3 mt-2 ml-7">
+                    {site.managementLinks.vcd && (
+                      <a 
+                        href={site.managementLinks.vcd.startsWith('http') ? site.managementLinks.vcd : `https://${site.managementLinks.vcd}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                        data-testid={`link-vcd-${site.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" /> VCD
+                      </a>
+                    )}
+                    {site.managementLinks.vcenter && (
+                      <a 
+                        href={site.managementLinks.vcenter.startsWith('http') ? site.managementLinks.vcenter : `https://${site.managementLinks.vcenter}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-green-500 hover:text-green-700 flex items-center gap-1"
+                        data-testid={`link-vcenter-${site.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" /> vCenter
+                      </a>
+                    )}
+                    {site.managementLinks.nsx && (
+                      <a 
+                        href={site.managementLinks.nsx.startsWith('http') ? site.managementLinks.nsx : `https://${site.managementLinks.nsx}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-500 hover:text-purple-700 flex items-center gap-1"
+                        data-testid={`link-nsx-${site.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" /> NSX
+                      </a>
+                    )}
+                    {site.managementLinks.aria && (
+                      <a 
+                        href={site.managementLinks.aria.startsWith('http') ? site.managementLinks.aria : `https://${site.managementLinks.aria}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-orange-500 hover:text-orange-700 flex items-center gap-1"
+                        data-testid={`link-aria-${site.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" /> Aria
+                      </a>
+                    )}
+                    {site.managementLinks.veeam && (
+                      <a 
+                        href={site.managementLinks.veeam.startsWith('http') ? site.managementLinks.veeam : `https://${site.managementLinks.veeam}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-teal-500 hover:text-teal-700 flex items-center gap-1"
+                        data-testid={`link-veeam-${site.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" /> Veeam
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="border-border/50">

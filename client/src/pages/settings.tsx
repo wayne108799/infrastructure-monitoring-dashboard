@@ -70,6 +70,10 @@ interface SiteFormData {
   secretKey: string;
   realm: string;
   isEnabled: boolean;
+  vcenterUrl: string;
+  nsxUrl: string;
+  ariaUrl: string;
+  veeamUrl: string;
 }
 
 const initialFormData: SiteFormData = {
@@ -85,6 +89,10 @@ const initialFormData: SiteFormData = {
   secretKey: '',
   realm: 'pam',
   isEnabled: true,
+  vcenterUrl: '',
+  nsxUrl: '',
+  ariaUrl: '',
+  veeamUrl: '',
 };
 
 export default function Settings() {
@@ -233,6 +241,11 @@ export default function Settings() {
       config.username = formData.username;
       config.password = formData.password;
       config.org = formData.org;
+      // Include management links for VCD
+      if (formData.vcenterUrl) config.vcenterUrl = formData.vcenterUrl;
+      if (formData.nsxUrl) config.nsxUrl = formData.nsxUrl;
+      if (formData.ariaUrl) config.ariaUrl = formData.ariaUrl;
+      if (formData.veeamUrl) config.veeamUrl = formData.veeamUrl;
     } else if (formData.platformType === 'cloudstack') {
       config.apiKey = formData.apiKey;
       config.secretKey = formData.secretKey;
@@ -264,6 +277,10 @@ export default function Settings() {
       secretKey: site.secretKey || '',
       realm: site.realm || 'pam',
       isEnabled: site.isEnabled !== false,
+      vcenterUrl: site.vcenterUrl || '',
+      nsxUrl: site.nsxUrl || '',
+      ariaUrl: site.ariaUrl || '',
+      veeamUrl: site.veeamUrl || '',
     });
   };
 
@@ -519,6 +536,55 @@ export default function Settings() {
       </div>
 
       {renderCredentialFields()}
+
+      {/* Management Links (VCD only) */}
+      {formData.platformType === 'vcd' && (
+        <div className="space-y-4 border-t pt-4">
+          <p className="text-sm font-medium text-muted-foreground">Management Console Links (optional)</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vcenterUrl">vCenter URL</Label>
+              <Input
+                id="vcenterUrl"
+                data-testid="input-vcenter-url"
+                value={formData.vcenterUrl}
+                onChange={(e) => setFormData({ ...formData, vcenterUrl: e.target.value })}
+                placeholder="https://vcenter.example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nsxUrl">NSX Manager URL</Label>
+              <Input
+                id="nsxUrl"
+                data-testid="input-nsx-url"
+                value={formData.nsxUrl}
+                onChange={(e) => setFormData({ ...formData, nsxUrl: e.target.value })}
+                placeholder="https://nsx.example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ariaUrl">Aria Operations URL</Label>
+              <Input
+                id="ariaUrl"
+                data-testid="input-aria-url"
+                value={formData.ariaUrl}
+                onChange={(e) => setFormData({ ...formData, ariaUrl: e.target.value })}
+                placeholder="https://aria.example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="veeamUrl">Veeam Site Backup URL</Label>
+              <Input
+                id="veeamUrl"
+                data-testid="input-veeam-url"
+                value={formData.veeamUrl}
+                onChange={(e) => setFormData({ ...formData, veeamUrl: e.target.value })}
+                placeholder="https://veeam.example.com"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center space-x-2">
         <Switch

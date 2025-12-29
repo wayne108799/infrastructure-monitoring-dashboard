@@ -2,6 +2,14 @@
 
 export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox' | 'veeam';
 
+export interface ManagementLinks {
+  vcd: string | null;
+  vcenter: string | null;
+  nsx: string | null;
+  aria: string | null;
+  veeam: string | null;
+}
+
 export interface Site {
   id: string;
   compositeId?: string;
@@ -10,6 +18,13 @@ export interface Site {
   url: string;
   platformType: PlatformType;
   status: 'online' | 'offline' | 'error' | 'maintenance';
+  managementLinks?: ManagementLinks;
+}
+
+export interface PollingStatus {
+  lastPollTime: string | null;
+  pollingIntervalHours: number;
+  nextPollTime: string | null;
 }
 
 export interface Platform {
@@ -317,6 +332,10 @@ export interface PlatformSiteConfig {
   secretKey?: string | null;
   realm?: string | null;
   isEnabled?: boolean | null;
+  vcenterUrl?: string | null;
+  nsxUrl?: string | null;
+  ariaUrl?: string | null;
+  veeamUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -334,6 +353,10 @@ export interface CreatePlatformSiteConfig {
   secretKey?: string;
   realm?: string;
   isEnabled?: boolean;
+  vcenterUrl?: string;
+  nsxUrl?: string;
+  ariaUrl?: string;
+  veeamUrl?: string;
 }
 
 /**
@@ -421,6 +444,53 @@ export async function exportTenantsCSV(): Promise<void> {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+/**
+ * Fetch polling status
+ */
+export async function fetchPollingStatus(): Promise<PollingStatus> {
+  const response = await fetch('/api/polling/status');
+  if (!response.ok) {
+    throw new Error('Failed to fetch polling status');
+  }
+  return response.json();
+}
+
+/**
+ * Trigger a manual poll cycle
+ */
+export async function triggerPoll(): Promise<{ success: boolean; message: string }> {
+  const response = await fetch('/api/polling/trigger', { method: 'POST' });
+  if (!response.ok) {
+    throw new Error('Failed to trigger poll');
+  }
+  return response.json();
+}
+
+/**
+ * Fetch cached site summary from last poll
+ */
+export async function fetchCachedSiteSummary(siteId: string): Promise<SiteSummary | null> {
+  const response = await fetch(`/api/polling/site/${siteId}/summary`);
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error('Failed to fetch cached site summary');
+  }
+  return response.json();
+}
+
+/**
+ * Fetch cached tenant allocations from last poll
+ */
+export async function fetchCachedTenants(siteId: string): Promise<OrgVdc[]> {
+  const response = await fetch(`/api/polling/site/${siteId}/tenants`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch cached tenants');
+  }
+  return response.json();
 }
 
 /**
