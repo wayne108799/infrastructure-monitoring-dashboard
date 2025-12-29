@@ -428,7 +428,7 @@ export default function Dashboard() {
                         <PieChart>
                           <Pie
                             data={[
-                              { name: 'Used', value: toVcpu(summary!.cpu.used), fill: '#22c55e' },
+                              { name: 'Used', value: Math.min(toVcpu(summary!.cpu.used), toVcpu(summary!.cpu.capacity)), fill: '#22c55e' },
                               { name: 'Available', value: Math.max(0, toVcpu(summary!.cpu.capacity) - toVcpu(summary!.cpu.used)), fill: '#64748b' },
                             ]}
                             cx="50%"
