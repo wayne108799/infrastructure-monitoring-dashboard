@@ -358,71 +358,71 @@ export default function Dashboard() {
           {validSummaries.map(({ site, summary }) => (
             <div key={site.id} className="mb-8" data-testid={`site-section-${site.id}`}>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-xl font-semibold flex items-center gap-2 flex-wrap">
                   <Server className="h-5 w-5 text-primary" />
                   {site.name} - {site.location}
                   <PlatformBadge type={site.platformType} />
+                  {/* Management Links - inline badges */}
+                  {site.managementLinks && (
+                    <>
+                      {site.managementLinks.vcd && (
+                        <a 
+                          href={site.managementLinks.vcd.startsWith('http') ? site.managementLinks.vcd : `https://${site.managementLinks.vcd}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded border border-blue-500 text-blue-400 hover:bg-blue-500/20 flex items-center gap-1"
+                          data-testid={`link-vcd-${site.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" /> VCD
+                        </a>
+                      )}
+                      {site.managementLinks.vcenter && (
+                        <a 
+                          href={site.managementLinks.vcenter.startsWith('http') ? site.managementLinks.vcenter : `https://${site.managementLinks.vcenter}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded border border-green-500 text-green-400 hover:bg-green-500/20 flex items-center gap-1"
+                          data-testid={`link-vcenter-${site.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" /> vCenter
+                        </a>
+                      )}
+                      {site.managementLinks.nsx && (
+                        <a 
+                          href={site.managementLinks.nsx.startsWith('http') ? site.managementLinks.nsx : `https://${site.managementLinks.nsx}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded border border-purple-500 text-purple-400 hover:bg-purple-500/20 flex items-center gap-1"
+                          data-testid={`link-nsx-${site.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" /> NSX
+                        </a>
+                      )}
+                      {site.managementLinks.aria && (
+                        <a 
+                          href={site.managementLinks.aria.startsWith('http') ? site.managementLinks.aria : `https://${site.managementLinks.aria}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded border border-orange-500 text-orange-400 hover:bg-orange-500/20 flex items-center gap-1"
+                          data-testid={`link-aria-${site.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" /> Aria
+                        </a>
+                      )}
+                      {site.managementLinks.veeam && (
+                        <a 
+                          href={site.managementLinks.veeam.startsWith('http') ? site.managementLinks.veeam : `https://${site.managementLinks.veeam}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded border border-teal-500 text-teal-400 hover:bg-teal-500/20 flex items-center gap-1"
+                          data-testid={`link-veeam-${site.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" /> Veeam
+                        </a>
+                      )}
+                    </>
+                  )}
                 </h2>
-                {/* Management Links */}
-                {site.managementLinks && (
-                  <div className="flex flex-wrap gap-3 mt-2 ml-7">
-                    {site.managementLinks.vcd && (
-                      <a 
-                        href={site.managementLinks.vcd.startsWith('http') ? site.managementLinks.vcd : `https://${site.managementLinks.vcd}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1"
-                        data-testid={`link-vcd-${site.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" /> VCD
-                      </a>
-                    )}
-                    {site.managementLinks.vcenter && (
-                      <a 
-                        href={site.managementLinks.vcenter.startsWith('http') ? site.managementLinks.vcenter : `https://${site.managementLinks.vcenter}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-green-500 hover:text-green-700 flex items-center gap-1"
-                        data-testid={`link-vcenter-${site.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" /> vCenter
-                      </a>
-                    )}
-                    {site.managementLinks.nsx && (
-                      <a 
-                        href={site.managementLinks.nsx.startsWith('http') ? site.managementLinks.nsx : `https://${site.managementLinks.nsx}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-purple-500 hover:text-purple-700 flex items-center gap-1"
-                        data-testid={`link-nsx-${site.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" /> NSX
-                      </a>
-                    )}
-                    {site.managementLinks.aria && (
-                      <a 
-                        href={site.managementLinks.aria.startsWith('http') ? site.managementLinks.aria : `https://${site.managementLinks.aria}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-orange-500 hover:text-orange-700 flex items-center gap-1"
-                        data-testid={`link-aria-${site.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" /> Aria
-                      </a>
-                    )}
-                    {site.managementLinks.veeam && (
-                      <a 
-                        href={site.managementLinks.veeam.startsWith('http') ? site.managementLinks.veeam : `https://${site.managementLinks.veeam}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-teal-500 hover:text-teal-700 flex items-center gap-1"
-                        data-testid={`link-veeam-${site.id}`}
-                      >
-                        <ExternalLink className="h-3 w-3" /> Veeam
-                      </a>
-                    )}
-                  </div>
-                )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
