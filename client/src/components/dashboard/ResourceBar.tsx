@@ -66,11 +66,17 @@ export function ResourceBar({ label, data, storageData, ipData, color, type = 'c
     isUnlimited = data.Limit === 0;
     
     const isMHz = unit === 'MHz';
-    const displayUnit = isMHz ? 'GHz' : 'GB';
-    const div = isMHz ? 1000 : 1024;
+    const isVcpu = unit === 'vCPU';
     
-    displayUsed = (used / div).toFixed(1);
-    displayTotal = isUnlimited ? 'Uncapped' : `${(limit / div).toFixed(1)} ${displayUnit}`;
+    if (isVcpu) {
+      displayUsed = used.toString();
+      displayTotal = isUnlimited ? 'Uncapped' : `${limit} vCPU`;
+    } else {
+      const displayUnit = isMHz ? 'GHz' : 'GB';
+      const div = isMHz ? 1000 : 1024;
+      displayUsed = (used / div).toFixed(1);
+      displayTotal = isUnlimited ? 'Uncapped' : `${(limit / div).toFixed(1)} ${displayUnit}`;
+    }
   }
 
   const usedPct = limit > 0 ? (used / limit) * 100 : 0;
