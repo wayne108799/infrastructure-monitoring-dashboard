@@ -144,6 +144,127 @@ export async function getLastPollTime(): Promise<Date | null> {
   return results.length > 0 ? results[0].polledAt : null;
 }
 
+interface HighWaterMarkData {
+  siteId: string;
+  tenantId: string;
+  tenantName: string;
+  orgName: string | null;
+  orgFullName: string | null;
+  maxCpuUsedMHz: number;
+  maxRamUsedMB: number;
+  maxStorageUsedMB: number;
+  maxAllocatedIps: number;
+  storageTiers: { [tierName: string]: { maxUsedMB: number } };
+  snapshotCount: number;
+}
+
+export async function getHighWaterMarkForMonth(year: number, month: number): Promise<HighWaterMarkData[]> {
+  // Calculate date range for the month
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 1);
+  
+  // Get all tenant snapshots for the month
+  const snapshots = await db.select()
+    .from(tenantPollSnapshots)
+    .where(
+      and(
+        sql`${tenantPollSnapshots.polledAt} >= ${startDate}`,
+        sql`${tenantPollSnapshots.polledAt} < ${endDate}`
+      )
+    );
+  
+  // Aggregate high water marks per tenant
+  const tenantHighWaterMarks = new Map<string, HighWaterMarkData>();
+  
+  for (const snapshot of snapshots) {
+    const key = `${snapshot.siteId}:${snapshot.tenantId}`;
+    const allocationData = snapshot.allocationData as Record<string, any> || {};
+    
+    if (!tenantHighWaterMarks.has(key)) {
+      tenantHighWaterMarks.set(key, {
+        siteId: snapshot.siteId,
+        tenantId: snapshot.tenantId,
+        tenantName: allocationData.name || snapshot.tenantId,
+        orgName: snapshot.orgName,
+        orgFullName: snapshot.orgFullName,
+        maxCpuUsedMHz: 0,
+        maxRamUsedMB: 0,
+        maxStorageUsedMB: 0,
+        maxAllocatedIps: 0,
+        storageTiers: {},
+        snapshotCount: 0,
+      });
+    }
+    
+    const hwm = tenantHighWaterMarks.get(key)!;
+    hwm.snapshotCount++;
+    
+    // Update max CPU used
+    const cpuUsed = allocationData.cpu?.used || 0;
+    if (cpuUsed > hwm.maxCpuUsedMHz) {
+      hwm.maxCpuUsedMHz = cpuUsed;
+    }
+    
+    // Update max RAM used
+    const ramUsed = allocationData.memory?.used || 0;
+    if (ramUsed > hwm.maxRamUsedMB) {
+      hwm.maxRamUsedMB = ramUsed;
+    }
+    
+    // Update max storage used
+    const storageUsed = allocationData.storage?.used || 0;
+    if (storageUsed > hwm.maxStorageUsedMB) {
+      hwm.maxStorageUsedMB = storageUsed;
+    }
+    
+    // Update max allocated IPs
+    const allocatedIps = allocationData.allocatedIps || 0;
+    if (allocatedIps > hwm.maxAllocatedIps) {
+      hwm.maxAllocatedIps = allocatedIps;
+    }
+    
+    // Update max per storage tier (normalize to lowercase for consistent aggregation)
+    const tiers = allocationData.storage?.tiers || [];
+    for (const tier of tiers) {
+      const tierName = (tier.name || 'Unknown').toLowerCase();
+      if (!hwm.storageTiers[tierName]) {
+        hwm.storageTiers[tierName] = { maxUsedMB: 0 };
+      }
+      const tierUsed = tier.used || 0;
+      if (tierUsed > hwm.storageTiers[tierName].maxUsedMB) {
+        hwm.storageTiers[tierName].maxUsedMB = tierUsed;
+      }
+    }
+  }
+  
+  return Array.from(tenantHighWaterMarks.values());
+}
+
+export async function getAvailableMonths(): Promise<{ year: number; month: number }[]> {
+  const results = await db.select({
+    polledAt: tenantPollSnapshots.polledAt,
+  })
+    .from(tenantPollSnapshots)
+    .orderBy(desc(tenantPollSnapshots.polledAt));
+  
+  const monthsSet = new Set<string>();
+  const months: { year: number; month: number }[] = [];
+  
+  for (const r of results) {
+    if (r.polledAt) {
+      const year = r.polledAt.getFullYear();
+      const month = r.polledAt.getMonth() + 1;
+      const key = `${year}-${month}`;
+      if (!monthsSet.has(key)) {
+        monthsSet.add(key);
+        months.push({ year, month });
+      }
+    }
+  }
+  
+  return months;
+}
+
 export function startPollingService(): void {
   if (pollIntervalId) {
     log('Polling service already running', 'polling');

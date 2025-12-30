@@ -446,6 +446,68 @@ export async function exportTenantsCSV(): Promise<void> {
   document.body.removeChild(a);
 }
 
+export interface HighWaterMarkTenant {
+  siteId: string;
+  site: string;
+  siteLocation: string;
+  platform: string;
+  tenantId: string;
+  tenant: string;
+  businessId: string;
+  businessName: string;
+  vcpu: number;
+  cpuUsedMHz: number;
+  ramGB: number;
+  ramUsedMB: number;
+  storageHpsGB: number;
+  storageSpsGB: number;
+  storageVvolGB: number;
+  storageOtherGB: number;
+  allocatedIps: number;
+  snapshotCount: number;
+  commitVcpu: string;
+  commitRamGB: string;
+  commitHpsGB: string;
+  commitSpsGB: string;
+  commitVvolGB: string;
+  commitOtherGB: string;
+  commitIps: string;
+  notes: string;
+}
+
+export interface HighWaterMarkResponse {
+  year: number;
+  month: number;
+  data: HighWaterMarkTenant[];
+}
+
+export interface AvailableMonth {
+  year: number;
+  month: number;
+}
+
+export async function fetchHighWaterMark(year?: number, month?: number): Promise<HighWaterMarkResponse> {
+  let url = '/api/report/high-water-mark';
+  const params = new URLSearchParams();
+  if (year) params.set('year', year.toString());
+  if (month) params.set('month', month.toString());
+  if (params.toString()) url += '?' + params.toString();
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('Failed to fetch high water mark data');
+  }
+  return response.json();
+}
+
+export async function fetchAvailableMonths(): Promise<AvailableMonth[]> {
+  const response = await fetch('/api/report/available-months');
+  if (!response.ok) {
+    throw new Error('Failed to fetch available months');
+  }
+  return response.json();
+}
+
 /**
  * Fetch polling status
  */

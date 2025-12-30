@@ -4,7 +4,7 @@ import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
-import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime } from "./lib/pollingService";
+import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime, getHighWaterMarkForMonth, getAvailableMonths } from "./lib/pollingService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -221,6 +221,132 @@ export async function registerRoutes(
       res.json({ success: true, message: 'Poll cycle started' });
     } catch (error: any) {
       log(`Error triggering poll: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/report/high-water-mark
+   * Get highest usage values for each tenant in a given month (for billing)
+   */
+  app.get('/api/report/high-water-mark', async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      // Default to current month if not specified
+      const now = new Date();
+      let targetYear = now.getFullYear();
+      let targetMonth = now.getMonth() + 1;
+      
+      if (year) {
+        const parsedYear = parseInt(year as string, 10);
+        if (isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+          return res.status(400).json({ error: 'Invalid year parameter. Must be between 2000 and 2100.' });
+        }
+        targetYear = parsedYear;
+      }
+      
+      if (month) {
+        const parsedMonth = parseInt(month as string, 10);
+        if (isNaN(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
+          return res.status(400).json({ error: 'Invalid month parameter. Must be between 1 and 12.' });
+        }
+        targetMonth = parsedMonth;
+      }
+      
+      const highWaterMarks = await getHighWaterMarkForMonth(targetYear, targetMonth);
+      
+      // Enrich with site info and commit levels
+      const allCommitLevels = await storage.getAllCommitLevels();
+      const commitLevelMap = new Map<string, typeof allCommitLevels[0]>();
+      for (const level of allCommitLevels) {
+        commitLevelMap.set(`${level.siteId}:${level.tenantId}`, level);
+      }
+      
+      // Get platform site info
+      const allSites = await storage.getAllPlatformSites();
+      const siteInfoMap = new Map<string, typeof allSites[0]>();
+      for (const site of allSites) {
+        siteInfoMap.set(site.siteId, site);
+      }
+      
+      const enrichedData = highWaterMarks.map(hwm => {
+        const commitLevel = commitLevelMap.get(`${hwm.siteId}:${hwm.tenantId}`);
+        const siteInfo = siteInfoMap.get(hwm.siteId);
+        
+        // Convert storage tiers to expected format
+        let storageHpsGB = 0;
+        let storageSpsGB = 0;
+        let storageVvolGB = 0;
+        let storageOtherGB = 0;
+        
+        for (const [tierName, tierData] of Object.entries(hwm.storageTiers)) {
+          const tierGB = Math.round(tierData.maxUsedMB / 1024);
+          const lowerName = tierName.toLowerCase();
+          if (lowerName.includes('hps') || lowerName.includes('high')) {
+            storageHpsGB += tierGB;
+          } else if (lowerName.includes('sps') || lowerName.includes('standard')) {
+            storageSpsGB += tierGB;
+          } else if (lowerName.includes('vvol')) {
+            storageVvolGB += tierGB;
+          } else {
+            storageOtherGB += tierGB;
+          }
+        }
+        
+        return {
+          siteId: hwm.siteId,
+          site: siteInfo?.name || hwm.siteId,
+          siteLocation: siteInfo?.location || '',
+          platform: (siteInfo?.platformType || 'vcd').toUpperCase(),
+          tenantId: hwm.tenantId,
+          tenant: hwm.tenantName,
+          businessId: commitLevel?.businessId || hwm.orgName || '',
+          businessName: commitLevel?.businessName || hwm.orgFullName || '',
+          // High water mark values (max for the month)
+          vcpu: Math.round(hwm.maxCpuUsedMHz / 2800),
+          cpuUsedMHz: hwm.maxCpuUsedMHz,
+          ramGB: Math.round(hwm.maxRamUsedMB / 1024),
+          ramUsedMB: hwm.maxRamUsedMB,
+          storageHpsGB,
+          storageSpsGB,
+          storageVvolGB,
+          storageOtherGB,
+          allocatedIps: hwm.maxAllocatedIps,
+          snapshotCount: hwm.snapshotCount,
+          // Commit levels
+          commitVcpu: commitLevel?.vcpuCount || '',
+          commitRamGB: commitLevel?.ramGB || '',
+          commitHpsGB: commitLevel?.storageHpsGB || '',
+          commitSpsGB: commitLevel?.storageSpsGB || '',
+          commitVvolGB: commitLevel?.storageVvolGB || '',
+          commitOtherGB: commitLevel?.storageOtherGB || '',
+          commitIps: commitLevel?.allocatedIps || '',
+          notes: commitLevel?.notes || '',
+        };
+      });
+      
+      res.json({
+        year: targetYear,
+        month: targetMonth,
+        data: enrichedData,
+      });
+    } catch (error: any) {
+      log(`Error fetching high water mark data: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/report/available-months
+   * Get list of months that have polling data
+   */
+  app.get('/api/report/available-months', async (req, res) => {
+    try {
+      const months = await getAvailableMonths();
+      res.json(months);
+    } catch (error: any) {
+      log(`Error fetching available months: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });
