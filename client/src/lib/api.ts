@@ -339,6 +339,9 @@ export interface PlatformSiteConfig {
   nsxUrl?: string | null;
   ariaUrl?: string | null;
   veeamUrl?: string | null;
+  vspcUrl?: string | null;
+  vspcUsername?: string | null;
+  vspcPassword?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -360,6 +363,9 @@ export interface CreatePlatformSiteConfig {
   nsxUrl?: string;
   ariaUrl?: string;
   veeamUrl?: string;
+  vspcUrl?: string;
+  vspcUsername?: string;
+  vspcPassword?: string;
 }
 
 /**

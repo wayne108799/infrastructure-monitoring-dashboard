@@ -1586,6 +1586,7 @@ export async function registerRoutes(
 
       await storage.deletePlatformSite(req.params.id);
       platformRegistry.removeSite(existingSite.siteId, existingSite.platformType as PlatformType);
+      clearVspcClientCache(existingSite.siteId);
       
       log(`Deleted platform site: ${existingSite.siteId}`, 'routes');
       res.status(204).send();

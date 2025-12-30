@@ -79,6 +79,9 @@ interface SiteFormData {
   nsxUrl: string;
   ariaUrl: string;
   veeamUrl: string;
+  vspcUrl: string;
+  vspcUsername: string;
+  vspcPassword: string;
 }
 
 const initialFormData: SiteFormData = {
@@ -98,6 +101,9 @@ const initialFormData: SiteFormData = {
   nsxUrl: '',
   ariaUrl: '',
   veeamUrl: '',
+  vspcUrl: '',
+  vspcUsername: '',
+  vspcPassword: '',
 };
 
 export default function Settings() {
@@ -298,6 +304,9 @@ export default function Settings() {
       nsxUrl: site.nsxUrl || '',
       ariaUrl: site.ariaUrl || '',
       veeamUrl: site.veeamUrl || '',
+      vspcUrl: site.vspcUrl || '',
+      vspcUsername: site.vspcUsername || '',
+      vspcPassword: site.vspcPassword || '',
     });
   };
 
@@ -691,6 +700,47 @@ export default function Settings() {
                 value={formData.veeamUrl}
                 onChange={(e) => setFormData({ ...formData, veeamUrl: e.target.value })}
                 placeholder="https://veeam.example.com"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VSPC Integration (VCD only) */}
+      {formData.platformType === 'vcd' && (
+        <div className="space-y-4 border-t pt-4">
+          <p className="text-sm font-medium text-muted-foreground">Veeam Service Provider Console (VSPC) Integration (optional)</p>
+          <p className="text-xs text-muted-foreground">Connect to VSPC to retrieve backup metrics for organizations linked to this VCD site.</p>
+          <div className="space-y-2">
+            <Label htmlFor="vspcUrl">VSPC API URL</Label>
+            <Input
+              id="vspcUrl"
+              data-testid="input-vspc-url"
+              value={formData.vspcUrl}
+              onChange={(e) => setFormData({ ...formData, vspcUrl: e.target.value })}
+              placeholder="https://vspc.example.com:1280"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vspcUsername">VSPC Username</Label>
+              <Input
+                id="vspcUsername"
+                data-testid="input-vspc-username"
+                value={formData.vspcUsername}
+                onChange={(e) => setFormData({ ...formData, vspcUsername: e.target.value })}
+                placeholder="domain\\administrator"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vspcPassword">VSPC Password</Label>
+              <Input
+                id="vspcPassword"
+                data-testid="input-vspc-password"
+                type="password"
+                value={formData.vspcPassword}
+                onChange={(e) => setFormData({ ...formData, vspcPassword: e.target.value })}
+                placeholder="********"
               />
             </div>
           </div>
