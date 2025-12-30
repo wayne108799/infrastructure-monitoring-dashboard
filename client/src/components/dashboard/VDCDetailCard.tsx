@@ -34,7 +34,7 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
   const cpuCapacity = cpuLimit > 0 ? cpuLimit : cpuAllocated;
   const memCapacity = memLimit > 0 ? memLimit : memAllocated;
   
-  const toVcpu = (mhz: number) => Math.round((mhz / 2800) * 3);
+  const toVcpu = (mhz: number) => Math.round((mhz / vCpuInMhz) * 3);
   
   const cpuHealth = cpuCapacity > 0 && (cpuUsed / cpuCapacity) > 0.9;
   const memHealth = memCapacity > 0 && (memUsed / memCapacity) > 0.9;
