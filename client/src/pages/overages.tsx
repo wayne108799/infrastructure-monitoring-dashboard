@@ -351,12 +351,99 @@ export default function Overages() {
             </AlertDescription>
           </Alert>
         ) : selectedTenantId === 'all' ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Tenant Overage Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Cpu className="h-5 w-5" />
+                    CPU: Commit vs Peak Usage (GHz)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={tenantSummaries.filter(t => t.hasCommit).slice(0, 10).map(t => ({
+                          name: t.tenantName.length > 15 ? t.tenantName.substring(0, 15) + '...' : t.tenantName,
+                          commit: Math.round(t.commitCpuGHz * 10) / 10,
+                          used: Math.round(t.maxCpuUsedGHz * 10) / 10,
+                          overage: t.maxCpuOverageGHz > 0 ? Math.round(t.maxCpuOverageGHz * 10) / 10 : 0,
+                        }))}
+                        layout="vertical"
+                        margin={{ left: 20, right: 20 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} />
+                        <Tooltip />
+                        <Bar dataKey="commit" name="Commit" fill="#94a3b8" />
+                        <Bar dataKey="used" name="Peak Used" fill="#3b82f6">
+                          {tenantSummaries.filter(t => t.hasCommit).slice(0, 10).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.maxCpuOverageGHz > 0 ? '#ef4444' : '#3b82f6'} 
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Red bars indicate usage exceeded commit. Showing top 10 tenants with commit levels.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <HardDrive className="h-5 w-5" />
+                    RAM: Commit vs Peak Usage (GB)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={tenantSummaries.filter(t => t.hasCommit).slice(0, 10).map(t => ({
+                          name: t.tenantName.length > 15 ? t.tenantName.substring(0, 15) + '...' : t.tenantName,
+                          commit: Math.round(t.commitRamGB),
+                          used: Math.round(t.maxRamUsedGB),
+                          overage: t.maxRamOverageGB > 0 ? Math.round(t.maxRamOverageGB) : 0,
+                        }))}
+                        layout="vertical"
+                        margin={{ left: 20, right: 20 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} />
+                        <Tooltip />
+                        <Bar dataKey="commit" name="Commit" fill="#94a3b8" />
+                        <Bar dataKey="used" name="Peak Used" fill="#22c55e">
+                          {tenantSummaries.filter(t => t.hasCommit).slice(0, 10).map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.maxRamOverageGB > 0 ? '#ef4444' : '#22c55e'} 
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Red bars indicate usage exceeded commit. Showing top 10 tenants with commit levels.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>All Tenant Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tenant</TableHead>
@@ -428,6 +515,7 @@ export default function Overages() {
               </p>
             </CardContent>
           </Card>
+          </>
         ) : selectedTenantData ? (
           <>
             <Card>
