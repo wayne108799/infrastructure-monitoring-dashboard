@@ -547,8 +547,10 @@ export async function registerRoutes(
           vmCount: tenant.vmCount,
           runningVmCount: tenant.runningVmCount,
         },
-        ipAllocation: {
+        ipAllocation: tenant.ipAllocation || {
           totalIpCount: tenant.allocatedIps || 0,
+          usedIpCount: tenant.allocatedIps || 0,
+          freeIpCount: 0,
         },
       }));
 
