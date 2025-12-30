@@ -4,21 +4,25 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Loader2, TrendingUp, AlertTriangle, Clock, Filter } from 'lucide-react';
+import { AlertCircle, Loader2, TrendingUp, AlertTriangle, Clock, Filter, Cpu, HardDrive } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
-  LineChart, 
-  Line, 
+  AreaChart, 
+  Area,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  Legend, 
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
-import { fetchSites, type Site } from '@/lib/api';
+import { fetchSites } from '@/lib/api';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 
 interface OverageDataPoint {
   id: string;
@@ -115,92 +119,112 @@ export default function Overages() {
     return tenants.filter(t => t.siteId === selectedSiteId);
   }, [tenants, selectedSiteId]);
 
-  const cpuChartData = useMemo(() => {
+  const tenantSummaries = useMemo(() => {
     if (!overageData) return [];
     
-    const byTime = new Map<string, any>();
-    
+    const summaryMap = new Map<string, {
+      tenantId: string;
+      tenantName: string;
+      siteId: string;
+      maxCpuUsedGHz: number;
+      commitCpuGHz: number;
+      maxRamUsedGB: number;
+      commitRamGB: number;
+      cpuOverageCount: number;
+      ramOverageCount: number;
+      maxCpuOverageGHz: number;
+      maxRamOverageGB: number;
+      hasCommit: boolean;
+      dataPoints: number;
+    }>();
+
     overageData.forEach(d => {
-      const time = format(new Date(d.polledAt), 'MMM dd HH:mm');
-      if (!byTime.has(time)) {
-        byTime.set(time, { time, tenants: {} });
+      if (!summaryMap.has(d.tenantId)) {
+        summaryMap.set(d.tenantId, {
+          tenantId: d.tenantId,
+          tenantName: d.orgFullName || d.orgName,
+          siteId: d.siteId,
+          maxCpuUsedGHz: 0,
+          commitCpuGHz: d.commitCpuMHz / 1000,
+          maxRamUsedGB: 0,
+          commitRamGB: d.commitRamMB / 1024,
+          cpuOverageCount: 0,
+          ramOverageCount: 0,
+          maxCpuOverageGHz: 0,
+          maxRamOverageGB: 0,
+          hasCommit: d.hasCommit,
+          dataPoints: 0,
+        });
       }
-      const entry = byTime.get(time)!;
       
-      const usedGHz = Math.round(d.cpuUsedMHz / 1000 * 10) / 10;
-      const commitGHz = d.commitCpuMHz > 0 ? Math.round(d.commitCpuMHz / 1000 * 10) / 10 : null;
+      const summary = summaryMap.get(d.tenantId)!;
+      summary.dataPoints++;
       
-      entry.tenants[`${d.tenantId}_used`] = usedGHz;
-      if (commitGHz !== null) {
-        entry.tenants[`${d.tenantId}_commit`] = commitGHz;
+      const cpuGHz = d.cpuUsedMHz / 1000;
+      const ramGB = d.ramUsedMB / 1024;
+      
+      if (cpuGHz > summary.maxCpuUsedGHz) summary.maxCpuUsedGHz = cpuGHz;
+      if (ramGB > summary.maxRamUsedGB) summary.maxRamUsedGB = ramGB;
+      
+      if (d.cpuOverageMHz > 0) {
+        summary.cpuOverageCount++;
+        const overageGHz = d.cpuOverageMHz / 1000;
+        if (overageGHz > summary.maxCpuOverageGHz) summary.maxCpuOverageGHz = overageGHz;
+      }
+      
+      if (d.ramOverageMB > 0) {
+        summary.ramOverageCount++;
+        const overageGB = d.ramOverageMB / 1024;
+        if (overageGB > summary.maxRamOverageGB) summary.maxRamOverageGB = overageGB;
       }
     });
-    
-    return Array.from(byTime.values()).map(e => ({
-      time: e.time,
-      ...e.tenants
-    })).sort((a, b) => a.time.localeCompare(b.time));
+
+    return Array.from(summaryMap.values())
+      .sort((a, b) => (b.cpuOverageCount + b.ramOverageCount) - (a.cpuOverageCount + a.ramOverageCount));
   }, [overageData]);
 
-  const ramChartData = useMemo(() => {
-    if (!overageData) return [];
+  const selectedTenantData = useMemo(() => {
+    if (selectedTenantId === 'all' || !overageData) return null;
     
-    const byTime = new Map<string, any>();
+    const tenantData = overageData
+      .filter(d => d.tenantId === selectedTenantId)
+      .sort((a, b) => new Date(a.polledAt).getTime() - new Date(b.polledAt).getTime());
     
-    overageData.forEach(d => {
-      const time = format(new Date(d.polledAt), 'MMM dd HH:mm');
-      if (!byTime.has(time)) {
-        byTime.set(time, { time, tenants: {} });
-      }
-      const entry = byTime.get(time)!;
-      
-      const usedGB = Math.round(d.ramUsedMB / 1024);
-      const commitGB = d.commitRamMB > 0 ? Math.round(d.commitRamMB / 1024) : null;
-      
-      entry.tenants[`${d.tenantId}_used`] = usedGB;
-      if (commitGB !== null) {
-        entry.tenants[`${d.tenantId}_commit`] = commitGB;
-      }
-    });
+    if (tenantData.length === 0) return null;
     
-    return Array.from(byTime.values()).map(e => ({
-      time: e.time,
-      ...e.tenants
-    })).sort((a, b) => a.time.localeCompare(b.time));
-  }, [overageData]);
+    const commitCpuGHz = tenantData[0].commitCpuMHz / 1000;
+    const commitRamGB = tenantData[0].commitRamMB / 1024;
+    
+    const chartData = tenantData.map(d => ({
+      time: format(new Date(d.polledAt), 'MMM dd HH:mm'),
+      cpuUsed: Math.round(d.cpuUsedMHz / 100) / 10,
+      cpuCommit: commitCpuGHz,
+      cpuOverage: d.cpuOverageMHz > 0 ? Math.round(d.cpuOverageMHz / 100) / 10 : 0,
+      ramUsed: Math.round(d.ramUsedMB / 1024 * 10) / 10,
+      ramCommit: commitRamGB,
+      ramOverage: d.ramOverageMB > 0 ? Math.round(d.ramOverageMB / 1024 * 10) / 10 : 0,
+    }));
+    
+    return {
+      tenantName: tenantData[0].orgFullName || tenantData[0].orgName,
+      commitCpuGHz,
+      commitRamGB,
+      hasCommit: tenantData[0].hasCommit,
+      chartData,
+    };
+  }, [overageData, selectedTenantId]);
 
   const overageSummary = useMemo(() => {
-    if (!overageData) return { cpu: 0, ram: 0, tenantsInOverage: new Set<string>() };
+    const tenantsWithOverages = tenantSummaries.filter(t => t.cpuOverageCount > 0 || t.ramOverageCount > 0);
+    const totalCpuOverages = tenantSummaries.reduce((sum, t) => sum + t.cpuOverageCount, 0);
+    const totalRamOverages = tenantSummaries.reduce((sum, t) => sum + t.ramOverageCount, 0);
     
-    let cpuOverageCount = 0;
-    let ramOverageCount = 0;
-    const tenantsInOverage = new Set<string>();
-    
-    overageData.forEach(d => {
-      if (d.cpuOverageMHz > 0) {
-        cpuOverageCount++;
-        tenantsInOverage.add(d.tenantId);
-      }
-      if (d.ramOverageMB > 0) {
-        ramOverageCount++;
-        tenantsInOverage.add(d.tenantId);
-      }
-    });
-    
-    return { cpu: cpuOverageCount, ram: ramOverageCount, tenantsInOverage };
-  }, [overageData]);
-
-  const tenantColors = useMemo(() => {
-    const colors = [
-      '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', 
-      '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
-    ];
-    const colorMap = new Map<string, { color: string; name: string }>();
-    tenants.forEach((t, i) => {
-      colorMap.set(t.id, { color: colors[i % colors.length], name: t.name });
-    });
-    return colorMap;
-  }, [tenants]);
+    return {
+      tenantsInOverage: tenantsWithOverages.length,
+      totalCpuOverages,
+      totalRamOverages,
+    };
+  }, [tenantSummaries]);
 
   if (sitesError || error) {
     return (
@@ -258,7 +282,7 @@ export default function Overages() {
                 <SelectValue placeholder="Filter by tenant" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Tenants</SelectItem>
+                <SelectItem value="all">All Tenants (Summary)</SelectItem>
                 {filteredTenants.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
@@ -270,45 +294,45 @@ export default function Overages() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overage Instances</CardTitle>
+              <CardTitle className="text-sm font-medium">Tenants with Overages</CardTitle>
               <AlertTriangle className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-overage-count">
-                {overageSummary.tenantsInOverage.size}
+                {overageSummary.tenantsInOverage}
               </div>
               <p className="text-xs text-muted-foreground">
-                Tenants with overages in period
+                out of {tenantSummaries.length} tenants
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">CPU Overages</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-sm font-medium">CPU Overage Events</CardTitle>
+              <Cpu className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-cpu-overage-count">
-                {overageSummary.cpu}
+                {overageSummary.totalCpuOverages}
               </div>
               <p className="text-xs text-muted-foreground">
-                Data points above commit
+                times usage exceeded commit
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">RAM Overages</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-sm font-medium">RAM Overage Events</CardTitle>
+              <HardDrive className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-ram-overage-count">
-                {overageSummary.ram}
+                {overageSummary.totalRamOverages}
               </div>
               <p className="text-xs text-muted-foreground">
-                Data points above commit
+                times usage exceeded commit
               </p>
             </CardContent>
           </Card>
@@ -326,19 +350,105 @@ export default function Overages() {
               No polling data found for the selected time period. Data is collected every 4 hours.
             </AlertDescription>
           </Alert>
-        ) : (
+        ) : selectedTenantId === 'all' ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant Overage Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead className="text-right">CPU Commit</TableHead>
+                    <TableHead className="text-right">Max CPU Used</TableHead>
+                    <TableHead className="text-right">CPU Overages</TableHead>
+                    <TableHead className="text-right">RAM Commit</TableHead>
+                    <TableHead className="text-right">Max RAM Used</TableHead>
+                    <TableHead className="text-right">RAM Overages</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tenantSummaries.map(summary => {
+                    const hasCpuOverage = summary.cpuOverageCount > 0;
+                    const hasRamOverage = summary.ramOverageCount > 0;
+                    
+                    return (
+                      <TableRow 
+                        key={summary.tenantId}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedTenantId(summary.tenantId)}
+                        data-testid={`row-tenant-${summary.tenantId}`}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {summary.tenantName}
+                            {(hasCpuOverage || hasRamOverage) && (
+                              <AlertTriangle className="h-4 w-4 text-orange-500" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {summary.hasCommit ? `${summary.commitCpuGHz.toFixed(1)} GHz` : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={hasCpuOverage ? 'text-red-500 font-medium' : ''}>
+                            {summary.maxCpuUsedGHz.toFixed(1)} GHz
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {hasCpuOverage ? (
+                            <Badge variant="destructive">{summary.cpuOverageCount}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {summary.hasCommit ? `${summary.commitRamGB.toFixed(0)} GB` : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={hasRamOverage ? 'text-red-500 font-medium' : ''}>
+                            {summary.maxRamUsedGB.toFixed(0)} GB
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {hasRamOverage ? (
+                            <Badge variant="destructive">{summary.ramOverageCount}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <p className="text-sm text-muted-foreground mt-4">
+                Click a row to see detailed charts for that tenant.
+              </p>
+            </CardContent>
+          </Card>
+        ) : selectedTenantData ? (
           <>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  CPU Usage vs Commit (GHz)
+                  <Cpu className="h-5 w-5" />
+                  CPU Usage - {selectedTenantData.tenantName}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[400px]">
+                {!selectedTenantData.hasCommit ? (
+                  <Alert className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No commit level set for this tenant. Set a commit level on the Details page.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={cpuChartData}>
+                    <AreaChart data={selectedTenantData.chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="time" 
@@ -350,50 +460,39 @@ export default function Overages() {
                         label={{ value: 'GHz', angle: -90, position: 'insideLeft' }}
                       />
                       <Tooltip />
-                      <Legend />
-                      {Array.from(tenantColors.entries()).map(([tenantId, { color, name }]) => (
-                        <Line
-                          key={`${tenantId}_used`}
-                          type="monotone"
-                          dataKey={`${tenantId}_used`}
-                          name={`${name} (Used)`}
-                          stroke={color}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      ))}
-                      {Array.from(tenantColors.entries()).map(([tenantId, { color, name }]) => (
-                        <Line
-                          key={`${tenantId}_commit`}
-                          type="monotone"
-                          dataKey={`${tenantId}_commit`}
-                          name={`${name} (Commit)`}
-                          stroke={color}
-                          strokeWidth={2}
+                      {selectedTenantData.hasCommit && (
+                        <ReferenceLine 
+                          y={selectedTenantData.commitCpuGHz} 
+                          stroke="#ef4444" 
                           strokeDasharray="5 5"
-                          dot={false}
+                          label={{ value: `Commit: ${selectedTenantData.commitCpuGHz.toFixed(1)} GHz`, position: 'right', fill: '#ef4444', fontSize: 11 }}
                         />
-                      ))}
-                    </LineChart>
+                      )}
+                      <Area
+                        type="monotone"
+                        dataKey="cpuUsed"
+                        name="CPU Used (GHz)"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.3}
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Solid lines show used CPU, dashed lines show commit levels. Areas above commit represent overages.
-                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  RAM Usage vs Commit (GB)
+                  <HardDrive className="h-5 w-5" />
+                  RAM Usage - {selectedTenantData.tenantName}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[400px]">
+                <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={ramChartData}>
+                    <AreaChart data={selectedTenantData.chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="time" 
@@ -405,91 +504,36 @@ export default function Overages() {
                         label={{ value: 'GB', angle: -90, position: 'insideLeft' }}
                       />
                       <Tooltip />
-                      <Legend />
-                      {Array.from(tenantColors.entries()).map(([tenantId, { color, name }]) => (
-                        <Line
-                          key={`${tenantId}_used`}
-                          type="monotone"
-                          dataKey={`${tenantId}_used`}
-                          name={`${name} (Used)`}
-                          stroke={color}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      ))}
-                      {Array.from(tenantColors.entries()).map(([tenantId, { color, name }]) => (
-                        <Line
-                          key={`${tenantId}_commit`}
-                          type="monotone"
-                          dataKey={`${tenantId}_commit`}
-                          name={`${name} (Commit)`}
-                          stroke={color}
-                          strokeWidth={2}
+                      {selectedTenantData.hasCommit && (
+                        <ReferenceLine 
+                          y={selectedTenantData.commitRamGB} 
+                          stroke="#ef4444" 
                           strokeDasharray="5 5"
-                          dot={false}
+                          label={{ value: `Commit: ${selectedTenantData.commitRamGB.toFixed(0)} GB`, position: 'right', fill: '#ef4444', fontSize: 11 }}
                         />
-                      ))}
-                    </LineChart>
+                      )}
+                      <Area
+                        type="monotone"
+                        dataKey="ramUsed"
+                        name="RAM Used (GB)"
+                        stroke="#22c55e"
+                        fill="#22c55e"
+                        fillOpacity={0.3}
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Solid lines show used RAM, dashed lines show commit levels. Areas above commit represent overages.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Overage Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {Array.from(overageSummary.tenantsInOverage).length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No overages detected in the selected time period
-                    </div>
-                  ) : (
-                    Array.from(overageSummary.tenantsInOverage).map(tenantId => {
-                      const tenant = tenants.find(t => t.id === tenantId);
-                      const tenantData = overageData.filter(d => d.tenantId === tenantId);
-                      const cpuOverages = tenantData.filter(d => d.cpuOverageMHz > 0);
-                      const ramOverages = tenantData.filter(d => d.ramOverageMB > 0);
-                      
-                      return (
-                        <div key={tenantId} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">{tenant?.name || tenantId}</h4>
-                            <div className="flex gap-2">
-                              {cpuOverages.length > 0 && (
-                                <Badge variant="destructive" data-testid={`badge-cpu-overage-${tenantId}`}>
-                                  {cpuOverages.length} CPU overages
-                                </Badge>
-                              )}
-                              {ramOverages.length > 0 && (
-                                <Badge variant="destructive" data-testid={`badge-ram-overage-${tenantId}`}>
-                                  {ramOverages.length} RAM overages
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          {cpuOverages.length > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              Max CPU overage: {(Math.max(...cpuOverages.map(d => d.cpuOverageMHz)) / 1000).toFixed(1)} GHz
-                            </p>
-                          )}
-                          {ramOverages.length > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              Max RAM overage: {Math.round(Math.max(...ramOverages.map(d => d.ramOverageMB)) / 1024)} GB
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </CardContent>
             </Card>
           </>
+        ) : (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No Data</AlertTitle>
+            <AlertDescription>
+              No data available for the selected tenant.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
     </DashboardLayout>
