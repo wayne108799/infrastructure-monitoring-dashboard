@@ -70,6 +70,9 @@ export interface StorageTier {
   used: number;
   available: number;
   units: string;
+  configuredCapacity?: number | null;
+  configuredCapacityGB?: number | null;
+  hasConfiguredCapacity?: boolean;
 }
 
 export interface NetworkMetrics {

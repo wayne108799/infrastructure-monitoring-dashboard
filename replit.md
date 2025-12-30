@@ -72,6 +72,14 @@ VEEAM_VEEAM1_NAME=Veeam ONE Server
 VEEAM_VEEAM1_LOCATION=US-East
 ```
 
+## Storage Capacity Configuration
+Each site can have custom usable storage capacity configured per tier:
+- Settings page allows viewing discovered storage tiers from VCD
+- Set custom "usable capacity" values that override platform-reported values
+- Dashboard uses configured capacity when calculating usage percentages
+- Configured tiers display with an asterisk (*) indicator
+- API returns both platform capacity and configured overrides
+
 ## API Endpoints
 
 - `GET /api/platforms` - List available platform types

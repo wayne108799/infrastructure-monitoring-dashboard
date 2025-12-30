@@ -402,6 +402,47 @@ export async function registerRoutes(
 
       const summary = await client.getSiteSummary();
       
+      // Get storage capacity overrides from database
+      const storageOverrides = await storage.getStorageConfigBySite(siteId);
+      const overrideMap = new Map(storageOverrides.map(o => [o.tierName.toLowerCase(), o.usableCapacityGB]));
+      
+      // Apply overrides to storage tiers
+      let totalConfiguredCapacity = 0;
+      const storageTiers = summary.storageTiers || [];
+      const enhancedTiers = storageTiers.map(tier => {
+        const overrideGB = overrideMap.get(tier.name.toLowerCase());
+        const configuredCapacityMB = overrideGB ? overrideGB * 1024 : null;
+        if (configuredCapacityMB) {
+          totalConfiguredCapacity += configuredCapacityMB;
+        }
+        return {
+          ...tier,
+          configuredCapacity: configuredCapacityMB,
+          configuredCapacityGB: overrideGB || null,
+          hasConfiguredCapacity: !!configuredCapacityMB,
+        };
+      });
+      
+      // Add any manually configured tiers that weren't discovered from the platform
+      const discoveredTierNames = new Set(storageTiers.map(t => t.name.toLowerCase()));
+      for (const override of storageOverrides) {
+        if (!discoveredTierNames.has(override.tierName.toLowerCase())) {
+          const capacityMB = override.usableCapacityGB * 1024;
+          totalConfiguredCapacity += capacityMB;
+          enhancedTiers.push({
+            name: override.tierName,
+            capacity: capacityMB,
+            limit: capacityMB,
+            used: 0,
+            available: capacityMB,
+            units: 'MB',
+            configuredCapacity: capacityMB,
+            configuredCapacityGB: override.usableCapacityGB,
+            hasConfiguredCapacity: true,
+          });
+        }
+      }
+      
       // Transform to legacy format for backward compatibility
       res.json({
         totalVdcs: summary.totalTenants,
@@ -429,8 +470,9 @@ export async function registerRoutes(
           used: summary.storage.used,
           available: summary.storage.available,
           units: summary.storage.units,
+          configuredCapacity: totalConfiguredCapacity || null,
         },
-        storageTiers: summary.storageTiers,
+        storageTiers: enhancedTiers,
         network: summary.network,
         platformType: summary.platformType,
       });
