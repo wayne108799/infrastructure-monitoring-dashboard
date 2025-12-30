@@ -260,21 +260,36 @@ export default function Settings() {
       isEnabled: formData.isEnabled,
     };
 
+    // Don't send password if it's the masked placeholder (keep existing password on server)
+    const isPasswordMasked = (pwd: string) => pwd === '********';
+    
     if (formData.platformType === 'vcd') {
       config.username = formData.username;
-      config.password = formData.password;
+      if (!isPasswordMasked(formData.password)) {
+        config.password = formData.password;
+      }
       config.org = formData.org;
       // Include management links for VCD
       if (formData.vcenterUrl) config.vcenterUrl = formData.vcenterUrl;
       if (formData.nsxUrl) config.nsxUrl = formData.nsxUrl;
       if (formData.ariaUrl) config.ariaUrl = formData.ariaUrl;
       if (formData.veeamUrl) config.veeamUrl = formData.veeamUrl;
+      // Include VSPC configuration for VCD
+      if (formData.vspcUrl) config.vspcUrl = formData.vspcUrl;
+      if (formData.vspcUsername) config.vspcUsername = formData.vspcUsername;
+      if (formData.vspcPassword && !isPasswordMasked(formData.vspcPassword)) {
+        config.vspcPassword = formData.vspcPassword;
+      }
     } else if (formData.platformType === 'cloudstack') {
       config.apiKey = formData.apiKey;
-      config.secretKey = formData.secretKey;
+      if (!isPasswordMasked(formData.secretKey)) {
+        config.secretKey = formData.secretKey;
+      }
     } else if (formData.platformType === 'proxmox') {
       config.username = formData.username;
-      config.password = formData.password;
+      if (!isPasswordMasked(formData.password)) {
+        config.password = formData.password;
+      }
       config.realm = formData.realm;
     }
 

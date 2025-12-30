@@ -19,7 +19,7 @@ import {
   fetchSiteSummary, 
   fetchCommitLevels,
   saveCommitLevel,
-  fetchBackupByOrg,
+  fetchVspcBackupByOrg,
   getPlatformShortName, 
   getPlatformColor,
   type Site, 
@@ -74,9 +74,15 @@ export default function Details() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Find selected site to determine platform type
+  const selectedSite = sites?.find(s => s.id === selectedSiteId);
+  
+  // Only fetch VSPC backup data for VCD sites
+  const isVcdSite = selectedSite?.platformType === 'vcd';
   const { data: backupByOrg } = useQuery({
-    queryKey: ['backupByOrg'],
-    queryFn: () => fetchBackupByOrg(),
+    queryKey: ['vspcBackupByOrg', selectedSiteId],
+    queryFn: () => fetchVspcBackupByOrg(selectedSiteId),
+    enabled: !!selectedSiteId && isVcdSite,
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   });
@@ -88,28 +94,22 @@ export default function Details() {
     }
   }
 
-  const normalizeOrgName = (name: string): string => {
-    return name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]/g, '')
-      .replace(/inc|llc|ltd|corp|co|limited/gi, '');
-  };
-
-  const getBackupMetricsForOrg = (orgName?: string): OrgBackupMetrics | undefined => {
-    if (!orgName || !backupByOrg?.configured || !backupByOrg.organizations) return undefined;
+  // Lookup backup metrics by org ID with fallback to name matching
+  const getBackupMetricsForOrg = (orgId?: string, orgName?: string): OrgBackupMetrics | undefined => {
+    if (!backupByOrg?.configured || !backupByOrg.organizations) return undefined;
     
-    const normalizedSearch = normalizeOrgName(orgName);
+    // Primary lookup: by org ID
+    if (orgId && backupByOrg.organizations[orgId]) {
+      return backupByOrg.organizations[orgId];
+    }
     
-    const exactMatch = backupByOrg.organizations[orgName.toLowerCase().trim()];
-    if (exactMatch) return exactMatch;
-    
-    for (const [key, metrics] of Object.entries(backupByOrg.organizations)) {
-      if (normalizeOrgName(key) === normalizedSearch) {
-        return metrics;
-      }
-      if (normalizedSearch.includes(normalizeOrgName(key)) || normalizeOrgName(key).includes(normalizedSearch)) {
-        return metrics;
+    // Fallback: search by org name match within organization data
+    if (orgName) {
+      const normalizedSearch = orgName.toLowerCase().trim();
+      for (const [key, metrics] of Object.entries(backupByOrg.organizations)) {
+        if (metrics.orgName && metrics.orgName.toLowerCase().trim() === normalizedSearch) {
+          return metrics;
+        }
       }
     }
     
@@ -159,8 +159,6 @@ export default function Details() {
     }
     saveCommitMutation.mutate(commitForm);
   };
-
-  const selectedSite = sites?.find(s => s.id === selectedSiteId);
 
   const toGHz = (mhz: number) => (mhz / 1000).toFixed(0);
   const toGB = (mb: number) => (mb / 1024).toFixed(0);
@@ -523,7 +521,7 @@ export default function Details() {
                     >
                       <VDCDetailCard 
                         vdc={vdc} 
-                        backupMetrics={getBackupMetricsForOrg(vdc.orgName)}
+                        backupMetrics={getBackupMetricsForOrg(vdc.org?.id, vdc.orgName)}
                         onSetCommit={() => openCommitDialog(vdc)}
                         hasCommit={hasCommit}
                       />

@@ -774,23 +774,51 @@ export async function testVeeamConnection(config: { url: string; username: strin
 
 // Backup metrics by organization
 export interface OrgBackupMetrics {
+  orgId?: string;
+  orgName?: string;
   protectedVmCount: number;
   totalVmCount: number;
   backupSizeGB: number;
+  protectionPercentage?: number;
 }
 
 export interface BackupByOrgResponse {
   configured: boolean;
+  siteId?: string;
   organizations: Record<string, OrgBackupMetrics>;
 }
 
 /**
- * Fetch backup metrics grouped by organization name
+ * Fetch backup metrics grouped by organization name (legacy Veeam ONE)
  */
 export async function fetchBackupByOrg(): Promise<BackupByOrgResponse> {
   const response = await fetch('/api/veeam/backup-by-org');
   if (!response.ok) {
     throw new Error('Failed to fetch backup metrics by org');
+  }
+  return response.json();
+}
+
+/**
+ * Fetch VSPC backup metrics for a specific VCD site (keyed by org ID)
+ */
+export async function fetchVspcBackupByOrg(siteId: string): Promise<BackupByOrgResponse> {
+  const response = await fetch(`/api/vspc/${siteId}/backup-by-org`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch VSPC backup metrics');
+  }
+  return response.json();
+}
+
+/**
+ * Test VSPC connection for a VCD site
+ */
+export async function testVspcConnection(siteId: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const response = await fetch(`/api/vspc/${siteId}/test-connection`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to test VSPC connection');
   }
   return response.json();
 }
