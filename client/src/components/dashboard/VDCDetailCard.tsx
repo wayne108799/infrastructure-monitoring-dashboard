@@ -25,8 +25,9 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
   const memReserved = vdc.computeCapacity?.memory?.reserved || 0;
   const memUsed = vdc.computeCapacity?.memory?.used || 0;
   
-  const ipUsed = vdc.network?.allocatedIps?.usedIpCount || 0;
-  const ipTotal = vdc.network?.allocatedIps?.totalIpCount || 0;
+  const ipAllocation = (vdc as any).ipAllocation || vdc.network?.allocatedIps || {};
+  const ipUsed = ipAllocation.usedIpCount || 0;
+  const ipTotal = ipAllocation.totalIpCount || 0;
   
   const vmResources = (vdc as any).vmResources || { cpuUsed: 0, memoryUsed: 0, vmCount: 0, runningVmCount: 0 };
   const vCpuInMhz = (vdc as any).vCpuInMhz2 || 2000;
@@ -62,8 +63,8 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
   const ipData = {
     totalIpCount: ipTotal,
     usedIpCount: ipUsed,
-    freeIpCount: vdc.network?.allocatedIps?.freeIpCount || (ipTotal - ipUsed),
-    subnets: vdc.network?.allocatedIps?.subnets || []
+    freeIpCount: ipAllocation.freeIpCount || (ipTotal - ipUsed),
+    subnets: ipAllocation.subnets || []
   };
 
   const storageProfiles = vdc.storageProfiles || [];
