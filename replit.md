@@ -86,6 +86,8 @@ VEEAM_VEEAM1_LOCATION=US-East
 - `POST /api/commit-levels` - Create/update tenant commit level
 - `DELETE /api/commit-levels/:siteId/:tenantId` - Delete tenant commit level
 - `GET /api/export/tenants` - Export all tenants as CSV (includes commit levels)
+- `GET /api/report/high-water-mark` - Get high water mark usage for billing (params: `year`, `month`)
+- `GET /api/report/available-months` - List months with polling data for billing reports
 - `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
 - `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
 - `GET /api/veeam/backup-by-org` - Get backup metrics grouped by organization name (for tenant matching)
@@ -100,7 +102,22 @@ On the Details page, each tenant card has a "Set Commit" button to define minimu
 
 These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
+## High Water Mark Billing
+The Report page displays **high water mark** usage for billing purposes:
+- Shows maximum resource usage recorded during the selected billing month
+- Based on polling data captured every 4 hours (stored in `tenantPollSnapshots` table)
+- Month selector allows viewing historical billing periods
+- Metrics include: vCPU, RAM, storage per tier, and public IPs
+- Storage tier names are normalized (lowercase) to prevent duplicate entries from case variations
+- Data retained for 30 days for billing reconciliation
+
 ## Recent Changes
+- **High Water Mark Billing**: Report page now shows maximum monthly usage for billing
+  - Month selector to view any historical period with polling data
+  - Displays max vCPU, RAM, storage, and IP usage per tenant
+  - API endpoints: `/api/report/high-water-mark`, `/api/report/available-months`
+  - Input validation on year/month parameters with helpful error messages
+  - Empty state handling when no polling data exists
 - **Per-Tenant Backup Metrics**: Details page now shows backup status per organization
   - Protected VMs count, backup storage used, protection coverage percentage
   - Metrics matched from Veeam ONE to VCD organizations using normalized name matching
