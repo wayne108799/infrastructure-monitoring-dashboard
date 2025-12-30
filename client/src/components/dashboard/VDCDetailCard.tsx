@@ -206,14 +206,12 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
         {/* Network Section */}
         <div className="space-y-4">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Globe className="h-3 w-3" /> Network Allocations
+            <Globe className="h-3 w-3" /> Public IPs
           </h4>
-          <ResourceBar
-            label="Public IPs"
-            ipData={ipData}
-            color="bg-orange-500"
-            type="network"
-          />
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center">
+            <div className="text-2xl font-bold text-orange-500">{ipTotal}</div>
+            <div className="text-xs text-muted-foreground">Allocated IPs</div>
+          </div>
         </div>
 
         {/* Backup Section - only show when there's actual data */}
