@@ -34,6 +34,8 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
   const cpuCapacity = cpuLimit > 0 ? cpuLimit : cpuAllocated;
   const memCapacity = memLimit > 0 ? memLimit : memAllocated;
   
+  const toVcpu = (mhz: number) => Math.round((mhz / 2800) * 3);
+  
   const cpuHealth = cpuCapacity > 0 && (cpuUsed / cpuCapacity) > 0.9;
   const memHealth = memCapacity > 0 && (memUsed / memCapacity) > 0.9;
   const ipHealth = ipTotal > 0 && (ipUsed / ipTotal) > 0.9;
@@ -42,11 +44,11 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
   const isCritical = vdc.status !== undefined && vdc.status !== 1;
 
   const cpuData = {
-    Used: cpuUsed,
-    Limit: cpuCapacity,
-    Reserved: cpuReserved,
-    Units: vdc.computeCapacity?.cpu?.units || 'MHz',
-    Allocated: cpuAllocated
+    Used: toVcpu(cpuUsed),
+    Limit: toVcpu(cpuCapacity),
+    Reserved: toVcpu(cpuReserved),
+    Units: 'vCPU',
+    Allocated: toVcpu(cpuAllocated)
   };
 
   const memData = {
@@ -157,7 +159,7 @@ export function VDCDetailCard({ vdc, backupMetrics, onSetCommit, hasCommit }: VD
           {hasComputeData ? (
             <>
               <ResourceBar
-                label="CPU"
+                label="vCPU (3:1)"
                 data={cpuData}
                 color="bg-cyan-500"
                 type="compute"
