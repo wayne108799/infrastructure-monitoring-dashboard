@@ -22,6 +22,7 @@ The dashboard displays resource availability, usage, and allocation metrics for:
   - `server/lib/platforms/index.ts` - Platform registry and factory
 - **Routes**: `server/routes.ts` - REST API endpoints for all platforms
   - `server/lib/platforms/veeamClient.ts` - Veeam ONE with OAuth 2.0 token auth
+  - `server/lib/platforms/vspcClient.ts` - VSPC (Veeam Service Provider Console) with OAuth 2.0 token auth
 
 ### Frontend (`client/`)
 - **Dashboard**: `client/src/pages/dashboard.tsx` - Overview with pie charts per site
@@ -100,6 +101,9 @@ Each site can have custom usable storage capacity configured per tier:
 - `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
 - `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
 - `GET /api/veeam/backup-by-org` - Get backup metrics grouped by organization name (for tenant matching)
+- `POST /api/vspc/:siteId/test-connection` - Test VSPC connection for a VCD site
+- `GET /api/vspc/:siteId/summary` - Get VSPC backup summary for a VCD site
+- `GET /api/vspc/:siteId/backup-by-org` - Get VSPC backup metrics by organization ID
 
 ## Minimum Commit Levels
 On the Details page, each tenant card has a "Set Commit" button to define minimum resource commitments:
@@ -131,6 +135,12 @@ The Overages page at `/overages` provides time-series visualization of resource 
 - Data sourced from polling snapshots captured every 4 hours
 
 ## Recent Changes
+- **VSPC Integration**: Added Veeam Service Provider Console integration for VCD sites
+  - VSPC configuration fields added to VCD site settings (URL, username, password)
+  - Details page displays backup metrics per organization using org ID matching
+  - Falls back to name matching when org ID is not available
+  - Endpoints: `POST /api/vspc/:siteId/test-connection`, `GET /api/vspc/:siteId/backup-by-org`
+  - Password masking prevents clearing existing credentials during edit
 - **Overages Page**: New time-series visualization for tracking resource overages at `/overages`
   - Line charts for vCPU and RAM usage vs commit levels
   - Filter by date range, site, or tenant
