@@ -1373,6 +1373,78 @@ export async function registerRoutes(
   });
 
   /**
+   * GET /api/config/sites/:siteId/storage/discovered
+   * Get discovered storage tiers from the platform merged with configured overrides
+   */
+  app.get('/api/config/sites/:siteId/storage/discovered', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      
+      // Get discovered tiers from the platform
+      const client = platformRegistry.getClientBySiteId(siteId);
+      let discoveredTiers: Array<{ name: string; capacityMB: number; usedMB: number }> = [];
+      
+      if (client) {
+        try {
+          const summary = await client.getSiteSummary();
+          if (summary.storageTiers) {
+            discoveredTiers = summary.storageTiers.map(tier => ({
+              name: tier.name,
+              capacityMB: tier.capacity,
+              usedMB: tier.used,
+            }));
+          }
+        } catch (e: any) {
+          log(`Could not fetch storage tiers from platform: ${e.message}`, 'routes');
+        }
+      }
+      
+      // Get configured overrides from database
+      const configs = await storage.getStorageConfigBySite(siteId);
+      const configMap = new Map(configs.map(c => [c.tierName.toLowerCase(), c]));
+      
+      // Merge discovered tiers with configured overrides
+      const mergedTiers = discoveredTiers.map(tier => {
+        const config = configMap.get(tier.name.toLowerCase());
+        return {
+          name: tier.name,
+          discoveredCapacityMB: tier.capacityMB,
+          discoveredCapacityGB: Math.round(tier.capacityMB / 1024),
+          usedMB: tier.usedMB,
+          usedGB: Math.round(tier.usedMB / 1024),
+          configuredCapacityGB: config?.usableCapacityGB || null,
+          hasOverride: !!config,
+        };
+      });
+      
+      // Add any configured tiers that weren't discovered
+      for (const config of configs) {
+        const exists = mergedTiers.some(t => t.name.toLowerCase() === config.tierName.toLowerCase());
+        if (!exists) {
+          mergedTiers.push({
+            name: config.tierName,
+            discoveredCapacityMB: 0,
+            discoveredCapacityGB: 0,
+            usedMB: 0,
+            usedGB: 0,
+            configuredCapacityGB: config.usableCapacityGB,
+            hasOverride: true,
+          });
+        }
+      }
+      
+      res.json({
+        siteId,
+        tiers: mergedTiers,
+        platformConnected: !!client,
+      });
+    } catch (error: any) {
+      log(`Error fetching discovered storage: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * POST /api/config/sites/:siteId/storage
    * Set storage capacity for a tier
    */

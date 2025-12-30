@@ -795,6 +795,22 @@ export interface SiteStorageConfig {
   updatedAt: string;
 }
 
+export interface DiscoveredStorageTier {
+  name: string;
+  discoveredCapacityMB: number;
+  discoveredCapacityGB: number;
+  usedMB: number;
+  usedGB: number;
+  configuredCapacityGB: number | null;
+  hasOverride: boolean;
+}
+
+export interface DiscoveredStorageResponse {
+  siteId: string;
+  tiers: DiscoveredStorageTier[];
+  platformConnected: boolean;
+}
+
 /**
  * Fetch storage configuration for a site
  */
@@ -802,6 +818,17 @@ export async function fetchStorageConfig(siteId: string): Promise<SiteStorageCon
   const response = await fetch(`/api/config/sites/${siteId}/storage`);
   if (!response.ok) {
     throw new Error('Failed to fetch storage config');
+  }
+  return response.json();
+}
+
+/**
+ * Fetch discovered storage tiers with configured overrides merged
+ */
+export async function fetchDiscoveredStorage(siteId: string): Promise<DiscoveredStorageResponse> {
+  const response = await fetch(`/api/config/sites/${siteId}/storage/discovered`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch discovered storage');
   }
   return response.json();
 }

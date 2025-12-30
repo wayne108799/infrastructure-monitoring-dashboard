@@ -37,12 +37,14 @@ import {
   saveVeeamConfig,
   testVeeamConnection,
   fetchStorageConfig,
+  fetchDiscoveredStorage,
   saveStorageConfig,
   type PlatformSiteConfig,
   type CreatePlatformSiteConfig,
   type PlatformType,
   type VeeamConfig,
-  type SiteStorageConfig
+  type SiteStorageConfig,
+  type DiscoveredStorageTier
 } from '@/lib/api';
 
 function getPlatformIcon(type: PlatformType) {
@@ -121,9 +123,14 @@ export default function Settings() {
   // Storage config state
   const [storageConfigSite, setStorageConfigSite] = useState<PlatformSiteConfig | null>(null);
   const [storageConfigs, setStorageConfigs] = useState<SiteStorageConfig[]>([]);
+  const [discoveredTiers, setDiscoveredTiers] = useState<DiscoveredStorageTier[]>([]);
+  const [loadingDiscoveredTiers, setLoadingDiscoveredTiers] = useState(false);
+  const [platformConnected, setPlatformConnected] = useState(false);
   const [newTierName, setNewTierName] = useState('');
   const [newTierCapacity, setNewTierCapacity] = useState('');
   const [savingStorage, setSavingStorage] = useState(false);
+  const [editingTier, setEditingTier] = useState<string | null>(null);
+  const [editingCapacity, setEditingCapacity] = useState('');
 
   const { data: sites = [], isLoading } = useQuery({
     queryKey: ['configuredSites'],
@@ -357,11 +364,25 @@ export default function Settings() {
     setStorageConfigSite(site);
     setNewTierName('');
     setNewTierCapacity('');
+    setEditingTier(null);
+    setEditingCapacity('');
+    setLoadingDiscoveredTiers(true);
+    
     try {
+      // Fetch discovered tiers with overrides merged
+      const discovered = await fetchDiscoveredStorage(site.siteId);
+      setDiscoveredTiers(discovered.tiers);
+      setPlatformConnected(discovered.platformConnected);
+      
+      // Also fetch raw configs for reference
       const configs = await fetchStorageConfig(site.siteId);
       setStorageConfigs(configs);
     } catch (error) {
+      setDiscoveredTiers([]);
       setStorageConfigs([]);
+      setPlatformConnected(false);
+    } finally {
+      setLoadingDiscoveredTiers(false);
     }
   };
 
@@ -371,6 +392,9 @@ export default function Settings() {
     setSavingStorage(true);
     try {
       await saveStorageConfig(storageConfigSite.siteId, newTierName, parseInt(newTierCapacity, 10));
+      // Refresh discovered tiers
+      const discovered = await fetchDiscoveredStorage(storageConfigSite.siteId);
+      setDiscoveredTiers(discovered.tiers);
       const configs = await fetchStorageConfig(storageConfigSite.siteId);
       setStorageConfigs(configs);
       setNewTierName('');
@@ -390,11 +414,43 @@ export default function Settings() {
     }
   };
 
+  const handleSaveDiscoveredTierCapacity = async (tierName: string, capacity: string) => {
+    if (!storageConfigSite || !capacity) return;
+    
+    setSavingStorage(true);
+    try {
+      await saveStorageConfig(storageConfigSite.siteId, tierName, parseInt(capacity, 10));
+      // Refresh discovered tiers
+      const discovered = await fetchDiscoveredStorage(storageConfigSite.siteId);
+      setDiscoveredTiers(discovered.tiers);
+      const configs = await fetchStorageConfig(storageConfigSite.siteId);
+      setStorageConfigs(configs);
+      setEditingTier(null);
+      setEditingCapacity('');
+      toast({
+        title: 'Storage Capacity Saved',
+        description: `Usable capacity for ${tierName} has been set to ${capacity} GB.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingStorage(false);
+    }
+  };
+
   const handleCloseStorageConfig = () => {
     setStorageConfigSite(null);
     setStorageConfigs([]);
+    setDiscoveredTiers([]);
+    setPlatformConnected(false);
     setNewTierName('');
     setNewTierCapacity('');
+    setEditingTier(null);
+    setEditingCapacity('');
   };
 
   const renderCredentialFields = () => {
@@ -1001,34 +1057,116 @@ export default function Settings() {
 
         {/* Storage Configuration Dialog */}
         <Dialog open={!!storageConfigSite} onOpenChange={(open) => !open && handleCloseStorageConfig()}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Storage Capacity Configuration</DialogTitle>
               <DialogDescription>
                 Set the usable storage capacity (in GB) for each storage tier in {storageConfigSite?.name}.
+                {!platformConnected && !loadingDiscoveredTiers && (
+                  <span className="text-yellow-600 ml-2">(Platform not connected - showing configured values only)</span>
+                )}
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4">
-              {/* Existing configurations */}
-              {storageConfigs.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Configured Tiers</Label>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {loadingDiscoveredTiers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <span className="text-muted-foreground">Loading storage tiers from platform...</span>
+                </div>
+              ) : discoveredTiers.length > 0 ? (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Storage Tiers</Label>
                   <div className="space-y-2">
-                    {storageConfigs.map((config) => (
-                      <div key={config.id} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
-                        <span className="font-medium">{config.tierName}</span>
-                        <span className="font-mono text-sm">{config.usableCapacityGB} GB</span>
+                    {discoveredTiers.map((tier) => (
+                      <div key={tier.name} className="border rounded-lg p-3 bg-muted/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{tier.name}</span>
+                          {tier.hasOverride && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                              Custom Capacity Set
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Platform Capacity:</span>
+                            <p className="font-mono">{tier.discoveredCapacityGB.toLocaleString()} GB</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Used:</span>
+                            <p className="font-mono">{tier.usedGB.toLocaleString()} GB</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Usable Capacity:</span>
+                            {editingTier === tier.name ? (
+                              <div className="flex items-center gap-2 mt-1">
+                                <Input
+                                  type="number"
+                                  value={editingCapacity}
+                                  onChange={(e) => setEditingCapacity(e.target.value)}
+                                  className="h-8 w-24"
+                                  placeholder="GB"
+                                  data-testid={`input-capacity-${tier.name}`}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => handleSaveDiscoveredTierCapacity(tier.name, editingCapacity)}
+                                  disabled={savingStorage || !editingCapacity}
+                                  data-testid={`button-save-capacity-${tier.name}`}
+                                >
+                                  {savingStorage ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8"
+                                  onClick={() => { setEditingTier(null); setEditingCapacity(''); }}
+                                  data-testid={`button-cancel-capacity-${tier.name}`}
+                                >
+                                  <XCircle className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <p className="font-mono">
+                                  {tier.configuredCapacityGB !== null 
+                                    ? `${tier.configuredCapacityGB.toLocaleString()} GB` 
+                                    : <span className="text-muted-foreground italic">Not set</span>}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2"
+                                  onClick={() => { 
+                                    setEditingTier(tier.name); 
+                                    setEditingCapacity(tier.configuredCapacityGB?.toString() || tier.discoveredCapacityGB.toString()); 
+                                  }}
+                                  data-testid={`button-edit-capacity-${tier.name}`}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No storage tiers discovered. Connect to the platform first or add a custom tier below.
+                </div>
               )}
               
-              {/* Add new tier */}
+              {/* Add custom tier */}
               <div className="border-t pt-4">
-                <Label className="text-sm font-medium">Add/Update Storage Tier</Label>
-                <div className="grid grid-cols-2 gap-4 mt-2">
+                <Label className="text-sm font-medium">Add Custom Storage Tier</Label>
+                <p className="text-xs text-muted-foreground mb-2">Add a tier that wasn't auto-discovered from the platform.</p>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="tierName" className="text-xs text-muted-foreground">Tier Name</Label>
                     <Input
@@ -1051,20 +1189,22 @@ export default function Settings() {
                     />
                   </div>
                 </div>
+                <Button 
+                  onClick={handleSaveStorageTier} 
+                  disabled={savingStorage || !newTierName || !newTierCapacity}
+                  className="mt-2"
+                  size="sm"
+                  data-testid="button-save-storage"
+                >
+                  {savingStorage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add Custom Tier
+                </Button>
               </div>
             </div>
             
             <DialogFooter>
               <Button variant="outline" onClick={handleCloseStorageConfig} data-testid="button-cancel-storage">
                 Close
-              </Button>
-              <Button 
-                onClick={handleSaveStorageTier} 
-                disabled={savingStorage || !newTierName || !newTierCapacity}
-                data-testid="button-save-storage"
-              >
-                {savingStorage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Tier
               </Button>
             </DialogFooter>
           </DialogContent>
