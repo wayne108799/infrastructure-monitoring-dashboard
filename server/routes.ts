@@ -2,9 +2,47 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
+import { VspcClient, createVspcClient } from "./lib/platforms/vspcClient";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
 import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime, getHighWaterMarkForMonth, getAvailableMonths, getOverageData } from "./lib/pollingService";
+
+const vspcClientCache = new Map<string, VspcClient>();
+
+async function getVspcClientForSite(siteId: string): Promise<VspcClient | null> {
+  if (vspcClientCache.has(siteId)) {
+    return vspcClientCache.get(siteId)!;
+  }
+  
+  const site = await storage.getPlatformSite(siteId);
+  if (!site || site.platformType !== 'vcd') {
+    return null;
+  }
+  
+  if (!site.vspcUrl || !site.vspcUsername || !site.vspcPassword) {
+    return null;
+  }
+  
+  const client = createVspcClient({
+    url: site.vspcUrl,
+    username: site.vspcUsername,
+    password: site.vspcPassword,
+  });
+  
+  if (client) {
+    vspcClientCache.set(siteId, client);
+  }
+  
+  return client;
+}
+
+function clearVspcClientCache(siteId?: string) {
+  if (siteId) {
+    vspcClientCache.delete(siteId);
+  } else {
+    vspcClientCache.clear();
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1039,6 +1077,108 @@ export async function registerRoutes(
   });
 
   /**
+   * POST /api/vspc/:siteId/test-connection
+   * Test VSPC connection for a VCD site
+   */
+  app.post('/api/vspc/:siteId/test-connection', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const { url, username, password } = req.body;
+      
+      if (!url || !username || !password) {
+        return res.status(400).json({ error: 'Missing required fields: url, username, password' });
+      }
+      
+      const testClient = createVspcClient({ url, username, password });
+      if (!testClient) {
+        return res.status(400).json({ success: false, error: 'Invalid VSPC configuration' });
+      }
+      
+      const result = await testClient.testConnection();
+      
+      if (result.success) {
+        res.json({ success: true, message: 'Successfully connected to VSPC' });
+      } else {
+        res.json({ success: false, error: result.error || 'Could not connect to VSPC' });
+      }
+    } catch (error: any) {
+      log(`Error testing VSPC connection: ${error.message}`, 'routes');
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/vspc/:siteId/summary
+   * Get VSPC backup summary for a VCD site
+   */
+  app.get('/api/vspc/:siteId/summary', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const vspcClient = await getVspcClientForSite(siteId);
+      
+      if (!vspcClient) {
+        return res.json({ 
+          configured: false, 
+          message: 'VSPC not configured for this site' 
+        });
+      }
+      
+      const summary = await vspcClient.getSummary();
+      
+      res.json({
+        configured: true,
+        siteId,
+        ...summary,
+      });
+    } catch (error: any) {
+      log(`Error fetching VSPC summary for ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/vspc/:siteId/backup-by-org
+   * Get backup metrics by organization ID from VSPC for a VCD site
+   */
+  app.get('/api/vspc/:siteId/backup-by-org', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const vspcClient = await getVspcClientForSite(siteId);
+      
+      if (!vspcClient) {
+        return res.json({ 
+          configured: false, 
+          organizations: {} 
+        });
+      }
+      
+      const metricsMap = await vspcClient.getBackupMetricsByOrgId();
+      
+      const organizations: Record<string, {
+        orgId: string;
+        orgName: string;
+        protectedVmCount: number;
+        totalVmCount: number;
+        backupSizeGB: number;
+        protectionPercentage: number;
+      }> = {};
+      
+      for (const [orgId, metrics] of Array.from(metricsMap.entries())) {
+        organizations[orgId] = metrics;
+      }
+      
+      res.json({
+        configured: true,
+        siteId,
+        organizations,
+      });
+    } catch (error: any) {
+      log(`Error fetching VSPC backup by org for ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * GET /api/commit-levels
    * Get all tenant commit levels
    */
@@ -1411,6 +1551,9 @@ export async function registerRoutes(
       if (parsed.data.secretKey === '********') {
         delete parsed.data.secretKey;
       }
+      if (parsed.data.vspcPassword === '********') {
+        delete parsed.data.vspcPassword;
+      }
 
       const site = await storage.updatePlatformSite(req.params.id, parsed.data);
       if (!site) {
@@ -1420,8 +1563,10 @@ export async function registerRoutes(
       platformRegistry.removeSite(existingSite.siteId, existingSite.platformType as PlatformType);
       platformRegistry.addSiteFromConfig(site);
       
+      clearVspcClientCache(existingSite.siteId);
+      
       log(`Updated platform site: ${site.siteId} (${site.platformType})`, 'routes');
-      res.json({ ...site, password: '********', secretKey: site.secretKey ? '********' : null });
+      res.json({ ...site, password: '********', secretKey: site.secretKey ? '********' : null, vspcPassword: site.vspcPassword ? '********' : null });
     } catch (error: any) {
       log(`Error updating site config: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
