@@ -165,6 +165,7 @@ export default function Details() {
   const toGHz = (mhz: number) => (mhz / 1000).toFixed(0);
   const toGB = (mb: number) => (mb / 1024).toFixed(0);
   const toTB = (mb: number) => (mb / 1024 / 1024).toFixed(1);
+  const toVcpu = (mhz: number) => Math.round((mhz / 2800) * 3);
 
   const getTenantLabel = (platformType?: string) => {
     switch (platformType) {
@@ -341,28 +342,28 @@ export default function Details() {
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="p-5">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
-                    <Cpu className="h-3.5 w-3.5 text-cyan-500" /> CPU
+                    <Cpu className="h-3.5 w-3.5 text-cyan-500" /> vCPU (3:1)
                   </h4>
                   <ResourceBar
                     label="Usage"
                     data={{
-                      Used: siteSummary?.cpu?.used || 0,
-                      Limit: siteSummary?.cpu?.capacity || 0,
-                      Reserved: siteSummary?.cpu?.reserved || 0,
-                      Units: 'MHz',
-                      Allocated: siteSummary?.cpu?.allocated || 0
+                      Used: toVcpu(siteSummary?.cpu?.used || 0),
+                      Limit: toVcpu(siteSummary?.cpu?.capacity || 0),
+                      Reserved: toVcpu(siteSummary?.cpu?.reserved || 0),
+                      Units: 'vCPU',
+                      Allocated: toVcpu(siteSummary?.cpu?.allocated || 0)
                     }}
                     color="bg-cyan-500"
                     type="compute"
                   />
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                      <div className="font-mono font-medium text-foreground">{toGHz(siteSummary?.cpu?.capacity || 0)}</div>
-                      <div className="text-muted-foreground">Capacity GHz</div>
+                      <div className="font-mono font-medium text-foreground">{toVcpu(siteSummary?.cpu?.capacity || 0)}</div>
+                      <div className="text-muted-foreground">Capacity vCPU</div>
                     </div>
                     <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                      <div className="font-mono font-medium text-cyan-500">{toGHz(siteSummary?.cpu?.allocated || 0)}</div>
-                      <div className="text-muted-foreground">Allocated GHz</div>
+                      <div className="font-mono font-medium text-cyan-500">{toVcpu(siteSummary?.cpu?.allocated || 0)}</div>
+                      <div className="text-muted-foreground">Allocated vCPU</div>
                     </div>
                   </div>
                 </CardContent>
@@ -400,35 +401,40 @@ export default function Details() {
 
               {/* Storage - Show each tier separately if available */}
               {siteSummary?.storageTiers && siteSummary.storageTiers.length > 0 ? (
-                siteSummary.storageTiers.map((tier, idx) => (
-                  <Card key={tier.name || idx} className="border-border/50 bg-card/50">
-                    <CardContent className="p-5">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
-                        <Database className="h-3.5 w-3.5 text-emerald-500" /> {tier.name}
-                      </h4>
-                      <ResourceBar
-                        label="Usage"
-                        storageData={{
-                          used: tier.used || 0,
-                          limit: tier.capacity || 0,
-                          units: 'MB'
-                        }}
-                        color="bg-emerald-500"
-                        type="storage"
-                      />
-                      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                          <div className="font-mono font-medium text-foreground">{toTB(tier.capacity || 0)}</div>
-                          <div className="text-muted-foreground">Capacity TB</div>
+                siteSummary.storageTiers.map((tier, idx) => {
+                  const effectiveCapacity = (tier as any).configuredCapacity || tier.capacity || 0;
+                  const hasConfigured = !!(tier as any).hasConfiguredCapacity;
+                  return (
+                    <Card key={tier.name || idx} className="border-border/50 bg-card/50">
+                      <CardContent className="p-5">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+                          <Database className="h-3.5 w-3.5 text-emerald-500" /> {tier.name}
+                          {hasConfigured && <span className="text-emerald-500">*</span>}
+                        </h4>
+                        <ResourceBar
+                          label="Usage"
+                          storageData={{
+                            used: tier.used || 0,
+                            limit: effectiveCapacity,
+                            units: 'MB'
+                          }}
+                          color="bg-emerald-500"
+                          type="storage"
+                        />
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                            <div className="font-mono font-medium text-foreground">{toTB(effectiveCapacity)}</div>
+                            <div className="text-muted-foreground">Capacity TB{hasConfigured && '*'}</div>
+                          </div>
+                          <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
+                            <div className="font-mono font-medium text-emerald-500">{toTB(tier.limit || 0)}</div>
+                            <div className="text-muted-foreground">Allocated TB</div>
+                          </div>
                         </div>
-                        <div className="rounded-md border border-border/50 bg-muted/30 p-2 text-center">
-                          <div className="font-mono font-medium text-emerald-500">{toTB(tier.limit || 0)}</div>
-                          <div className="text-muted-foreground">Allocated TB</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               ) : (
                 <Card className="border-border/50 bg-card/50">
                   <CardContent className="p-5">
