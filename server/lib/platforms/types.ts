@@ -64,6 +64,11 @@ export interface TenantAllocation {
   vmCount: number;
   runningVmCount: number;
   allocatedIps?: number;
+  ipAllocation?: {
+    totalIpCount: number;
+    usedIpCount: number;
+    freeIpCount: number;
+  };
 }
 
 export interface SiteSummary {

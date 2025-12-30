@@ -290,7 +290,12 @@ export class VcdAdapter implements PlatformClient {
       storageTiers: storageTiers.sort((a, b) => a.name.localeCompare(b.name)),
       vmCount: vdc.vmResources?.vmCount || 0,
       runningVmCount: vdc.vmResources?.runningVmCount || 0,
-      allocatedIps: vdc.ipAllocation?.totalIpCount || 0,
+      allocatedIps: vdc.network?.allocatedIps?.totalIpCount || vdc.ipAllocation?.totalIpCount || 0,
+      ipAllocation: {
+        totalIpCount: vdc.network?.allocatedIps?.totalIpCount || 0,
+        usedIpCount: vdc.network?.allocatedIps?.usedIpCount || 0,
+        freeIpCount: vdc.network?.allocatedIps?.freeIpCount || 0,
+      },
     };
   }
 }
