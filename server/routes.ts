@@ -11,17 +11,77 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Initialize all platform clients from environment
-  platformRegistry.initializeFromEnv();
-  
-  // Also load sites from database
+  // Load sites from database only (GUI-based configuration)
   try {
     const dbSites = await storage.getAllPlatformSites();
-    if (dbSites.length > 0) {
+    
+    // If no sites in database, migrate from environment variables (one-time migration)
+    if (dbSites.length === 0) {
+      log('No sites in database. Attempting one-time migration from environment variables...', 'routes');
+      await migrateEnvSitesToDatabase();
+      const migratedSites = await storage.getAllPlatformSites();
+      if (migratedSites.length > 0) {
+        await platformRegistry.initializeFromDatabase(migratedSites);
+        log(`Migrated ${migratedSites.length} sites from environment variables to database`, 'routes');
+      } else {
+        log('No sites configured. Add platform connections in Settings.', 'routes');
+      }
+    } else {
       await platformRegistry.initializeFromDatabase(dbSites);
+      log(`Loaded ${dbSites.length} sites from database`, 'routes');
     }
   } catch (error) {
-    log(`Warning: Could not load sites from database: ${error}`, 'routes');
+    log(`ERROR: Could not load sites from database: ${error}. Configure sites through Settings once database is available.`, 'routes');
+    // Do not fall back to env vars - database is the only source of truth
+  }
+  
+  // Helper function to migrate environment variables to database
+  async function migrateEnvSitesToDatabase(): Promise<void> {
+    const platforms = [
+      { type: 'vcd' as PlatformType, prefix: 'VCD' },
+      { type: 'cloudstack' as PlatformType, prefix: 'CLOUDSTACK' },
+      { type: 'proxmox' as PlatformType, prefix: 'PROXMOX' },
+    ];
+    
+    for (const { type, prefix } of platforms) {
+      const sitesEnv = process.env[`${prefix}_SITES`] || '';
+      const siteIds = sitesEnv.split(',').map(s => s.trim()).filter(Boolean);
+      
+      for (const siteId of siteIds) {
+        const upperSiteId = siteId.toUpperCase();
+        const url = process.env[`${prefix}_${upperSiteId}_URL`];
+        const username = process.env[`${prefix}_${upperSiteId}_USERNAME`];
+        const password = process.env[`${prefix}_${upperSiteId}_PASSWORD`];
+        const name = process.env[`${prefix}_${upperSiteId}_NAME`] || siteId;
+        const location = process.env[`${prefix}_${upperSiteId}_LOCATION`] || 'Unknown';
+        const org = process.env[`${prefix}_${upperSiteId}_ORG`];
+        const apiKey = process.env[`${prefix}_${upperSiteId}_API_KEY`];
+        const secretKey = process.env[`${prefix}_${upperSiteId}_SECRET_KEY`];
+        const realm = process.env[`${prefix}_${upperSiteId}_REALM`];
+        
+        if (!url) continue;
+        
+        try {
+          await storage.createPlatformSite({
+            siteId,
+            platformType: type,
+            name,
+            location,
+            url,
+            username: username || null,
+            password: password || null,
+            org: org || null,
+            apiKey: apiKey || null,
+            secretKey: secretKey || null,
+            realm: realm || null,
+            isEnabled: true,
+          });
+          log(`Migrated ${type} site ${siteId} to database`, 'routes');
+        } catch (error) {
+          log(`Failed to migrate ${type} site ${siteId}: ${error}`, 'routes');
+        }
+      }
+    }
   }
   
   // Load Veeam ONE config from globalConfig
