@@ -291,6 +291,22 @@ sudo systemctl status monitoring-dashboard
 
 ## Updating the Application
 
+### Using the Deploy Script (Recommended)
+
+```bash
+cd /opt/monitoring-dashboard
+sudo ./deploy.sh
+```
+
+The deploy script automatically:
+- Pulls the latest code from git
+- Installs any new dependencies
+- Runs database migrations
+- Builds the application
+- Restarts the service
+
+### Manual Update
+
 ```bash
 cd /opt/monitoring-dashboard
 
