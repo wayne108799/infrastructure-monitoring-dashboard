@@ -4,7 +4,7 @@ import { log } from "./index";
 import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
-import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime, getHighWaterMarkForMonth, getAvailableMonths } from "./lib/pollingService";
+import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime, getHighWaterMarkForMonth, getAvailableMonths, getOverageData } from "./lib/pollingService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -347,6 +347,78 @@ export async function registerRoutes(
       res.json(months);
     } catch (error: any) {
       log(`Error fetching available months: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/report/overages
+   * Get overage data over time for graphing
+   */
+  app.get('/api/report/overages', async (req, res) => {
+    try {
+      const { startDate, endDate, siteId, tenantId } = req.query;
+      
+      const options: {
+        startDate?: Date;
+        endDate?: Date;
+        siteId?: string;
+        tenantId?: string;
+      } = {};
+      
+      if (startDate) {
+        options.startDate = new Date(startDate as string);
+      }
+      if (endDate) {
+        options.endDate = new Date(endDate as string);
+      }
+      if (siteId) {
+        options.siteId = siteId as string;
+      }
+      if (tenantId) {
+        options.tenantId = tenantId as string;
+      }
+      
+      const usageData = await getOverageData(options);
+      
+      // Get commit levels to compare
+      const commitLevels = await storage.getAllCommitLevels();
+      const commitMap = new Map<string, typeof commitLevels[0]>();
+      for (const cl of commitLevels) {
+        commitMap.set(cl.tenantId, cl);
+      }
+      
+      // Calculate overages by comparing usage to commit levels
+      const overageData = usageData.map(usage => {
+        const commit = commitMap.get(usage.tenantId);
+        
+        // Convert vCPU commit to MHz (vcpu * speed * 1000)
+        const commitCpuMHz = commit && commit.vcpuCount && commit.vcpuSpeedGhz 
+          ? parseFloat(commit.vcpuCount) * parseFloat(commit.vcpuSpeedGhz) * 1000 
+          : 0;
+        const commitRamMB = commit && commit.ramGB ? parseFloat(commit.ramGB) * 1024 : 0;
+        
+        // Storage commits in GB, convert to MB
+        const commitStorageHpsMB = commit && commit.storageHpsGB ? parseFloat(commit.storageHpsGB) * 1024 : 0;
+        const commitStorageSpsMB = commit && commit.storageSpsGB ? parseFloat(commit.storageSpsGB) * 1024 : 0;
+        const commitStorageVvolMB = commit && commit.storageVvolGB ? parseFloat(commit.storageVvolGB) * 1024 : 0;
+        
+        return {
+          ...usage,
+          commitCpuMHz,
+          commitRamMB,
+          commitStorageHpsMB,
+          commitStorageSpsMB,
+          commitStorageVvolMB,
+          cpuOverageMHz: Math.max(0, usage.cpuUsedMHz - commitCpuMHz),
+          ramOverageMB: Math.max(0, usage.ramUsedMB - commitRamMB),
+          hasCommit: !!commit,
+        };
+      });
+      
+      res.json(overageData);
+    } catch (error: any) {
+      log(`Error fetching overage data: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

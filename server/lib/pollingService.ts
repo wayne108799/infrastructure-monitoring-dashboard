@@ -293,3 +293,56 @@ export function stopPollingService(): void {
     log('Polling service stopped', 'polling');
   }
 }
+
+/**
+ * Get overage data over time for graphing
+ * Compares usage to commit levels
+ */
+export async function getOverageData(options: {
+  startDate?: Date;
+  endDate?: Date;
+  siteId?: string;
+  tenantId?: string;
+}): Promise<any[]> {
+  const { startDate, endDate, siteId, tenantId } = options;
+  
+  // Default to last 30 days if not specified
+  const end = endDate || new Date();
+  const start = startDate || new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  // Build query conditions
+  let query = db.select()
+    .from(tenantPollSnapshots)
+    .where(
+      and(
+        sql`${tenantPollSnapshots.polledAt} >= ${start}`,
+        sql`${tenantPollSnapshots.polledAt} <= ${end}`,
+        siteId ? eq(tenantPollSnapshots.siteId, siteId) : undefined,
+        tenantId ? eq(tenantPollSnapshots.tenantId, tenantId) : undefined,
+      )
+    )
+    .orderBy(tenantPollSnapshots.polledAt);
+  
+  const snapshots = await query;
+  
+  return snapshots.map((s: TenantPollSnapshot) => {
+    const allocationData = s.allocationData as Record<string, any> || {};
+    return {
+      id: s.id,
+      siteId: s.siteId,
+      tenantId: s.tenantId,
+      orgName: s.orgName,
+      orgFullName: s.orgFullName,
+      polledAt: s.polledAt,
+      vmCount: s.vmCount,
+      runningVmCount: s.runningVmCount,
+      cpuUsedMHz: allocationData.cpu?.used || 0,
+      cpuAllocatedMHz: allocationData.cpu?.allocated || 0,
+      ramUsedMB: allocationData.memory?.used || 0,
+      ramAllocatedMB: allocationData.memory?.allocated || 0,
+      storageUsedMB: allocationData.storage?.used || 0,
+      storageTiers: allocationData.storageTiers || [],
+      allocatedIps: allocationData.allocatedIps || 0,
+    };
+  });
+}

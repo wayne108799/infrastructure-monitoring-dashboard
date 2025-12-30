@@ -96,6 +96,7 @@ Each site can have custom usable storage capacity configured per tier:
 - `GET /api/export/tenants` - Export all tenants as CSV (includes commit levels)
 - `GET /api/report/high-water-mark` - Get high water mark usage for billing (params: `year`, `month`)
 - `GET /api/report/available-months` - List months with polling data for billing reports
+- `GET /api/report/overages` - Get overage data over time (params: `startDate`, `endDate`, `siteId`, `tenantId`)
 - `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
 - `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
 - `GET /api/veeam/backup-by-org` - Get backup metrics grouped by organization name (for tenant matching)
@@ -119,7 +120,23 @@ The Report page displays **high water mark** usage for billing purposes:
 - Storage tier names are normalized (lowercase) to prevent duplicate entries from case variations
 - Data retained for 30 days for billing reconciliation
 
+## Overages Tracking
+The Overages page at `/overages` provides time-series visualization of resource usage vs commit levels:
+- **Time-series graphs**: Line charts showing vCPU and RAM usage over time
+- **Commit level comparison**: Dashed lines show commit levels, solid lines show actual usage
+- **Overage detection**: Highlights when usage exceeds committed resources
+- **Filtering**: Filter by date range (7/14/30 days), site, or specific tenant
+- **Summary cards**: Count of tenants in overage, CPU overages, RAM overages
+- **Detail breakdown**: Per-tenant overage details with max overage values
+- Data sourced from polling snapshots captured every 4 hours
+
 ## Recent Changes
+- **Overages Page**: New time-series visualization for tracking resource overages at `/overages`
+  - Line charts for vCPU and RAM usage vs commit levels
+  - Filter by date range, site, or tenant
+  - Summary cards showing overage counts
+  - Per-tenant overage details with max values
+  - Endpoint: `GET /api/report/overages`
 - **High Water Mark Billing**: Report page now shows maximum monthly usage for billing
   - Month selector to view any historical period with polling data
   - Displays max vCPU, RAM, storage, and IP usage per tenant
