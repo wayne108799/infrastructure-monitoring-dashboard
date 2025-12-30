@@ -36,6 +36,10 @@ export const platformSites = pgTable("platform_sites", {
   nsxUrl: text("nsx_url"),
   ariaUrl: text("aria_url"),
   veeamUrl: text("veeam_url"),
+  // VSPC (Veeam Service Provider Console) integration - linked per VCD site
+  vspcUrl: text("vspc_url"),
+  vspcUsername: text("vspc_username"),
+  vspcPassword: text("vspc_password"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
