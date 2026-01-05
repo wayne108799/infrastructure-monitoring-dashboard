@@ -14,15 +14,19 @@ async function getVspcClientForSite(siteId: string): Promise<VspcClient | null> 
     return vspcClientCache.get(siteId)!;
   }
   
-  const site = await storage.getPlatformSite(siteId);
+  // Use getPlatformSiteBySiteId to lookup by siteId (e.g. "ATL3") not UUID
+  const site = await storage.getPlatformSiteBySiteId(siteId);
   if (!site || site.platformType !== 'vcd') {
+    log(`VSPC: Site ${siteId} not found or not VCD`, 'routes');
     return null;
   }
   
   if (!site.vspcUrl || !site.vspcUsername || !site.vspcPassword) {
+    log(`VSPC: Site ${siteId} missing VSPC configuration (url: ${!!site.vspcUrl}, user: ${!!site.vspcUsername}, pass: ${!!site.vspcPassword})`, 'routes');
     return null;
   }
   
+  log(`VSPC: Creating client for ${siteId} at ${site.vspcUrl}`, 'routes');
   const client = createVspcClient({
     url: site.vspcUrl,
     username: site.vspcUsername,
