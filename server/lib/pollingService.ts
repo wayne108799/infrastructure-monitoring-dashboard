@@ -334,6 +334,12 @@ export async function getOverageData(options: {
   const end = endDate || new Date();
   const start = startDate || new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
   
+  // Handle siteId format - polling stores as "vcd:ATL3" but user may pass "ATL3"
+  let effectiveSiteId = siteId;
+  if (siteId && !siteId.includes(':')) {
+    effectiveSiteId = `vcd:${siteId}`;
+  }
+  
   // Build query conditions
   let query = db.select()
     .from(tenantPollSnapshots)
@@ -341,7 +347,7 @@ export async function getOverageData(options: {
       and(
         sql`${tenantPollSnapshots.polledAt} >= ${start}`,
         sql`${tenantPollSnapshots.polledAt} <= ${end}`,
-        siteId ? eq(tenantPollSnapshots.siteId, siteId) : undefined,
+        effectiveSiteId ? eq(tenantPollSnapshots.siteId, effectiveSiteId) : undefined,
         tenantId ? eq(tenantPollSnapshots.tenantId, tenantId) : undefined,
       )
     )

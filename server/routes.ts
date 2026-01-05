@@ -313,8 +313,11 @@ export async function registerRoutes(
       }
       
       const enrichedData = highWaterMarks.map(hwm => {
-        const commitLevel = commitLevelMap.get(`${hwm.siteId}:${hwm.tenantId}`);
-        const siteInfo = siteInfoMap.get(hwm.siteId);
+        // Strip platform prefix from siteId to match commit level key format
+        // hwm.siteId is "vcd:ATL3", commit levels are stored with "ATL3"
+        const plainSiteId = hwm.siteId.includes(':') ? hwm.siteId.split(':')[1] : hwm.siteId;
+        const commitLevel = commitLevelMap.get(`${plainSiteId}:${hwm.tenantId}`);
+        const siteInfo = siteInfoMap.get(plainSiteId);
         
         // Convert storage tiers to expected format
         let storageHpsGB = 0;
@@ -423,16 +426,19 @@ export async function registerRoutes(
       
       const usageData = await getOverageData(options);
       
-      // Get commit levels to compare
+      // Get commit levels to compare - use siteId:tenantId as key
       const commitLevels = await storage.getAllCommitLevels();
       const commitMap = new Map<string, typeof commitLevels[0]>();
       for (const cl of commitLevels) {
-        commitMap.set(cl.tenantId, cl);
+        commitMap.set(`${cl.siteId}:${cl.tenantId}`, cl);
       }
       
       // Calculate overages by comparing usage to commit levels
       const overageData = usageData.map(usage => {
-        const commit = commitMap.get(usage.tenantId);
+        // Strip platform prefix from siteId to match commit level key format
+        // usage.siteId is "vcd:ATL3", commit levels are stored with "ATL3"
+        const plainSiteId = usage.siteId.includes(':') ? usage.siteId.split(':')[1] : usage.siteId;
+        const commit = commitMap.get(`${plainSiteId}:${usage.tenantId}`);
         
         // Convert vCPU commit to MHz (vcpu * speed * 1000)
         const commitCpuMHz = commit && commit.vcpuCount && commit.vcpuSpeedGhz 
