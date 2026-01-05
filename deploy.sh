@@ -16,6 +16,7 @@ cd "$APP_DIR"
 echo "[1/5] Pulling latest code from git..."
 sudo -u "$APP_USER" git fetch origin
 sudo -u "$APP_USER" git reset --hard origin/main
+chmod +x "$APP_DIR/deploy.sh"
 echo "      Done."
 echo ""
 
