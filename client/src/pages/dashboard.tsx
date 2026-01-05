@@ -7,7 +7,7 @@ import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter,
 import { cn } from '@/lib/utils';
 import { 
   fetchSites, 
-  fetchSiteSummary, 
+  fetchSiteSummaryFast, 
   fetchPlatforms,
   exportTenantsCSV,
   fetchPollingStatus,
@@ -123,7 +123,8 @@ export default function Dashboard() {
       const summaries = await Promise.all(
         filteredSites.map(async (site) => {
           try {
-            const summary = await fetchSiteSummary(site.id);
+            // Use cached data for fast loading (falls back to live API if no cache)
+            const summary = await fetchSiteSummaryFast(site.id);
             return { site, summary };
           } catch (e) {
             console.log(`Failed to fetch summary for ${site.id}:`, e);

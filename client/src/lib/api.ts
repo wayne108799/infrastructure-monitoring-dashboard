@@ -554,6 +554,25 @@ export async function fetchCachedSiteSummary(siteId: string): Promise<SiteSummar
 }
 
 /**
+ * Fetch site summary - uses cached data first, falls back to live API if no cache
+ * This provides fast loading while ensuring data is always available
+ */
+export async function fetchSiteSummaryFast(siteId: string): Promise<SiteSummary | null> {
+  // Try cached data first (instant from database)
+  const cached = await fetchCachedSiteSummary(siteId);
+  if (cached) {
+    return cached;
+  }
+  
+  // Fall back to live API call if no cached data
+  try {
+    return await fetchSiteSummary(siteId);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Fetch cached tenant allocations from last poll
  */
 export async function fetchCachedTenants(siteId: string): Promise<OrgVdc[]> {
