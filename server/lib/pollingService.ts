@@ -95,11 +95,22 @@ export async function pruneOldSnapshots(): Promise<void> {
 }
 
 export async function getLatestSiteSummary(siteId: string): Promise<any | null> {
-  const results = await db.select()
+  // Try both formats: plain siteId (e.g., "ATL3") and composite (e.g., "vcd:ATL3")
+  // Polling stores as composite, but API may pass plain format
+  let results = await db.select()
     .from(sitePollSnapshots)
     .where(eq(sitePollSnapshots.siteId, siteId))
     .orderBy(desc(sitePollSnapshots.polledAt))
     .limit(1);
+  
+  // If not found, try with vcd: prefix (most common platform)
+  if (results.length === 0 && !siteId.includes(':')) {
+    results = await db.select()
+      .from(sitePollSnapshots)
+      .where(eq(sitePollSnapshots.siteId, `vcd:${siteId}`))
+      .orderBy(desc(sitePollSnapshots.polledAt))
+      .limit(1);
+  }
   
   if (results.length === 0) return null;
   
@@ -112,19 +123,32 @@ export async function getLatestSiteSummary(siteId: string): Promise<any | null> 
 }
 
 export async function getLatestTenantAllocations(siteId: string): Promise<any[]> {
+  // Handle both plain siteId (e.g., "ATL3") and composite (e.g., "vcd:ATL3")
+  let effectiveSiteId = siteId;
+  
   // Get the latest polledAt for this site
-  const latestPoll = await db.select({ polledAt: tenantPollSnapshots.polledAt })
+  let latestPoll = await db.select({ polledAt: tenantPollSnapshots.polledAt })
     .from(tenantPollSnapshots)
     .where(eq(tenantPollSnapshots.siteId, siteId))
     .orderBy(desc(tenantPollSnapshots.polledAt))
     .limit(1);
+  
+  // If not found, try with vcd: prefix
+  if (latestPoll.length === 0 && !siteId.includes(':')) {
+    effectiveSiteId = `vcd:${siteId}`;
+    latestPoll = await db.select({ polledAt: tenantPollSnapshots.polledAt })
+      .from(tenantPollSnapshots)
+      .where(eq(tenantPollSnapshots.siteId, effectiveSiteId))
+      .orderBy(desc(tenantPollSnapshots.polledAt))
+      .limit(1);
+  }
   
   if (latestPoll.length === 0) return [];
   
   // Get all tenants from that poll
   const results = await db.select()
     .from(tenantPollSnapshots)
-    .where(sql`${tenantPollSnapshots.siteId} = ${siteId} AND ${tenantPollSnapshots.polledAt} = ${latestPoll[0].polledAt}`);
+    .where(sql`${tenantPollSnapshots.siteId} = ${effectiveSiteId} AND ${tenantPollSnapshots.polledAt} = ${latestPoll[0].polledAt}`);
   
   return results.map((r: TenantPollSnapshot) => {
     const allocationData = r.allocationData as Record<string, any> || {};
