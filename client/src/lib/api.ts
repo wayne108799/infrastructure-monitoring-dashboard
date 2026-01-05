@@ -554,22 +554,14 @@ export async function fetchCachedSiteSummary(siteId: string): Promise<SiteSummar
 }
 
 /**
- * Fetch site summary - uses cached data first, falls back to live API if no cache
- * This provides fast loading while ensuring data is always available
+ * Fetch site summary - uses cached data only for fast loading
+ * Returns null if no cache exists (initial poll still in progress)
+ * This prevents slow live API calls on page load
  */
 export async function fetchSiteSummaryFast(siteId: string): Promise<SiteSummary | null> {
-  // Try cached data first (instant from database)
-  const cached = await fetchCachedSiteSummary(siteId);
-  if (cached) {
-    return cached;
-  }
-  
-  // Fall back to live API call if no cached data
-  try {
-    return await fetchSiteSummary(siteId);
-  } catch (e) {
-    return null;
-  }
+  // Only use cached data - don't fall back to slow live API
+  // If cache is empty, the polling service is still initializing
+  return await fetchCachedSiteSummary(siteId);
 }
 
 /**

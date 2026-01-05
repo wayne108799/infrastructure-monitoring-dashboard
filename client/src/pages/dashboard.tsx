@@ -350,6 +350,20 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!summariesLoading && allSiteSummaries && validSummaries.length === 0 && filteredSites.length > 0 && (
+        <Alert className="mb-6">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>Initializing Data</AlertTitle>
+          <AlertDescription>
+            The dashboard is collecting data from your platforms. This happens automatically after server startup.
+            <br />
+            <span className="text-xs mt-1 block">
+              Click "Refresh Data" above or wait ~1 minute for the initial data collection to complete.
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!summariesLoading && allSiteSummaries && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
