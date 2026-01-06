@@ -1,0 +1,66 @@
+hivelocity@montorserver:~$ # Check if public folder exists with correct files
+ls -la /opt/monitoring-dashboard/dist/public/
+
+# Check if index.html exists
+cat /opt/monitoring-dashboard/dist/public/index.html | head -20
+total 84
+drwxrwxr-x 3 www-data www-data  4096 Jan  6 18:34 .
+drwxrwxr-x 3 www-data www-data  4096 Jan  6 18:34 ..
+drwxrwxr-x 2 www-data www-data  4096 Jan  6 18:34 assets
+-rw-rw-r-- 1 www-data www-data  1145 Jan  6 18:34 favicon.png
+-rw-rw-r-- 1 www-data www-data  1523 Jan  6 18:34 index.html
+-rw-rw-r-- 1 www-data www-data 63164 Jan  6 18:34 opengraph.jpg
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+    <meta property="og:title" content="VCD Monitor - Cloud Director Usage" />
+    <meta property="og:description" content="Enterprise monitoring interface for VMware Cloud Director resources across multiple sites." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://replit.com/public/images/opengraph.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@replit" />
+    <meta name="twitter:title" content="VCD Monitor - Cloud Director Usage" />
+    <meta name="twitter:description" content="Enterprise monitoring interface for VMware Cloud Director resources across multiple sites." />
+    <meta name="twitter:image" content="https://replit.com/public/images/opengraph.png" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+hivelocity@montorserver:~$ sudo systemctl restart monitoring-dashboard
+sleep 3
+sudo journalctl -u monitoring-dashboard -n 30 --no-pager
+Jan 06 21:35:14 montorserver monitoring-dashboard[919077]: 9:35:14 PM [vcd-client] Storage profiles: 2 found
+Jan 06 21:35:14 montorserver monitoring-dashboard[919077]: 9:35:14 PM [vcd-client] Storage profiles: 1 found
+Jan 06 21:35:14 montorserver monitoring-dashboard[919077]: 9:35:14 PM [polling] Polled site vcd:ORD4: 11 tenants
+Jan 06 21:35:14 montorserver monitoring-dashboard[919077]: 9:35:14 PM [polling] Poll cycle complete
+Jan 06 21:35:14 montorserver monitoring-dashboard[919077]: 9:35:14 PM [polling] Pruned snapshots older than 30 days
+Jan 06 21:36:35 montorserver monitoring-dashboard[919077]: 9:36:35 PM [express] GET /api/platforms 200 in 3ms :: [{"type":"vcd","name":"VMware Cloud Director","siteCount":2},{"type":"veeam","name":"Veeam ONE","siteCount":1}]
+Jan 06 21:36:35 montorserver monitoring-dashboard[919077]: 9:36:35 PM [express] GET /api/polling/status 200 in 28ms :: {"lastPollTime":"2026-01-06T21:35:03.551Z","pollingIntervalHours":4,"nextPollTime":"2026-01-07T01:35:03.551Z"}
+Jan 06 21:36:35 montorserver monitoring-dashboard[919077]: 9:36:35 PM [express] GET /api/sites 200 in 7ms :: [{"id":"ATL3","compositeId":"vcd:ATL3","name":"ATL3","location":"Atlanta, GA","url":"https://atl3.cloud.hivelocity.net","platformType":"vcd","status":"online","managementLinks":{"vcd":"https://atl3.cloud.hivelocity.net","vcenter":null,"nsx":null,"aria":null,"veeam":null}},{"id":"ORD4","compositeId":"vcd:ORD4","name":"ORD4","location":"Chicago, IL","url":"https://ord4.cloud.hivelocity.net","platformType":"vcd","status":"online","managementLinks":{"vcd":"https://ord4.cloud.hivelocity.net","vcenter":null,"nsx":null,"aria":null,"veeam":null}},{"id":"VEEAM_GLOBAL","compositeId":"veeam:VEEAM_GLOBAL","name":"Veeam ONE","location":"","url":"https://10.1.202.15:1239","platformType":"veeam","status":"online","managementLinks":{"vcd":"https://10.1.202.15:1239","vcenter":null,"nsx":null,"aria":null,"veeam":null}}]
+Jan 06 21:36:35 montorserver monitoring-dashboard[919077]: 9:36:35 PM [express] GET /api/config/sites 200 in 22ms :: [{"id":"fef887cd-ca78-45bc-b049-e64912a3f882","siteId":"ATL3","platformType":"vcd","name":"ATL3","location":"Atlanta, GA","url":"https://atl3.cloud.hivelocity.net","username":"monitor","password":"********","org":"System","apiKey":null,"secretKey":null,"realm":null,"isEnabled":true,"vcenterUrl":null,"nsxUrl":null,"ariaUrl":null,"veeamUrl":null,"vspcUrl":null,"vspcUsername":null,"vspcPassword":null,"createdAt":"2025-12-26T23:16:27.334Z","updatedAt":"2025-12-26T23:16:27.334Z"},{"id":"77aae848-3fc8-42d4-ae22-1f9de615504b","siteId":"ORD4","platformType":"vcd","name":"ORD4","location":"Chicago, IL","url":"https://ord4.cloud.hivelocity.net","username":"monitor","password":"********","org":"System","apiKey":null,"secretKey":null,"realm":null,"isEnabled":true,"vcenterUrl":null,"nsxUrl":null,"ariaUrl":null,"veeamUrl":null,"vspcUrl":"https://cp1ord4.vb.hivelocity.net:1280","vspcUsername":"wunderwood@hivelocity.net","vspcPassword":"@DE69jew10879!wu","createdAt":"2025-12-26T23:19:07.624Z","updatedAt":"2025-12-31T04:55:36.555Z"}]
+Jan 06 21:36:36 montorserver monitoring-dashboard[919077]: 9:36:36 PM [express] GET /api/polling/site/ORD4/summary 200 in 9ms :: {"cpu":{"used":491800,"units":"MHz","capacity":397223,"reserved":44480,"allocated":501400,"available":-104177},"memory":{"used":756736,"units":"MB","capacity":1555654,"reserved":127488,"allocated":699392,"available":856262},"siteId":"ORD4","network":{"freeIps":184,"usedIps":70,"totalIps":254,"allocatedIps":70},"storage":{"used":56414027,"limit":71150592,"units":"MB","capacity":2097152,"available":-54316875},"totalVms":46,"runningVms":38,"platformType":"vcd","storageTiers":[{"name":"ORD4-HPS-VVOL","used":942865,"limit":2048000,"units":"MB","capacity":1048576,"available":105711},{"name":"ORD4-SPS-VVOL","used":55471162,"limit":69102592,"units":"MB","capacity":1048576,"available":-54422586}],"totalTenants":11,"polledAt":"2026-01-06T21:35:03.551Z"}
+Jan 06 21:36:36 montorserver monitoring-dashboard[919077]: 9:36:36 PM [express] GET /api/polling/site/ATL3/summary 200 in 8ms :: {"cpu":{"used":1502800,"units":"MHz","capacity":869004,"reserved":468000,"allocated":2827000,"available":-1957996},"memory":{"used":1793024,"units":"MB","capacity":3416512,"reserved":1546771,"allocated":3269670,"available":146842},"siteId":"ATL3","network":{"freeIps":208,"usedIps":52,"totalIps":260,"allocatedIps":52},"storage":{"used":52091010,"limit":94561280,"units":"MB","capacity":50346239,"available":-1744771},"totalVms":106,"runningVms":65,"platformType":"vcd","storageTiers":[{"name":"HPS","used":12009734,"limit":24038400,"units":"MB","capacity":8388608,"available":-3621126},{"name":"SPS","used":40081276,"limit":69806080,"units":"MB","capacity":8388608,"available":-31692668},{"name":"VVol No Requirements Policy","used":0,"limit":716800,"units":"MB","capacity":16777216,"available":16777216}],"totalTenants":15,"polledAt":"2026-01-06T21:35:03.551Z"}
+Jan 06 21:36:36 montorserver monitoring-dashboard[919077]: 9:36:36 PM [express] GET /api/config/sites/ATL3/storage 304 in 2ms :: [{"id":"7976ded6-86b6-4ff5-b468-066e7e6bd80d","siteId":"ATL3","tierName":"SPS","usableCapacityGB":102400,"updatedAt":"2026-01-05T19:24:04.883Z"},{"id":"38f9ac80-8b4e-472f-b5c3-48911dd03fba","siteId":"ATL3","tierName":"HPS","usableCapacityGB":51200,"updatedAt":"2026-01-05T19:24:29.115Z"}]
+Jan 06 21:36:36 montorserver monitoring-dashboard[919077]: 9:36:36 PM [express] GET /api/polling/site/VEEAM_GLOBAL/summary 404 in 22ms :: {"error":"No cached data available for this site"}
+Jan 06 21:36:36 montorserver monitoring-dashboard[919077]: 9:36:36 PM [express] GET /api/config/sites/ORD4/storage 304 in 4ms :: [{"id":"cb6176c4-287b-43b5-a930-dde46ad3286e","siteId":"ORD4","tierName":"ORD4-HPS-VVOL","usableCapacityGB":51200,"updatedAt":"2026-01-05T19:46:18.628Z"},{"id":"9170ea1c-0959-4a29-96d5-51a5d7630f1c","siteId":"ORD4","tierName":"ORD4-SPS-VVOL","usableCapacityGB":102400,"updatedAt":"2026-01-05T19:46:28.255Z"}]
+Jan 06 22:52:09 montorserver systemd[1]: Stopping monitoring-dashboard.service - Infrastructure Monitoring Dashboard...
+Jan 06 22:52:09 montorserver systemd[1]: monitoring-dashboard.service: Deactivated successfully.
+Jan 06 22:52:09 montorserver systemd[1]: Stopped monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:52:09 montorserver systemd[1]: monitoring-dashboard.service: Consumed 3.221s CPU time, 62.7M memory peak, 0B memory swap peak.
+Jan 06 22:52:09 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [platform-registry] Loading 2 sites from database...
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [platform-registry] Added VCD client for site: ATL3
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [platform-registry] Added VCD client for site: ORD4
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [routes] Loaded 2 sites from database
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [routes] Attempting to load Veeam ONE config from database...
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [routes] Veeam config from DB: found
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [routes] Parsed Veeam config: url=https://10.1.202.15:1239/, hasUsername=true, hasPassword=true
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [platform-registry] Added VEEAM client for site: VEEAM_GLOBAL
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [routes] Loaded Veeam ONE configuration from database
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [express] serving on port 5000
+Jan 06 22:52:09 montorserver monitoring-dashboard[919654]: 10:52:09 PM [polling] Starting polling service (interval: 240 minutes)
+hivelocity@montorserver:~$
