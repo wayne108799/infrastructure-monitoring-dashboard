@@ -175,20 +175,27 @@ sudo tee /etc/systemd/system/monitoring-dashboard.service << 'EOF'
 [Unit]
 Description=Infrastructure Monitoring Dashboard
 After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 Type=simple
 User=www-data
 Group=www-data
 WorkingDirectory=/opt/monitoring-dashboard
-ExecStart=/usr/bin/node dist/index.js
+EnvironmentFile=/opt/monitoring-dashboard/.env
+ExecStart=/usr/bin/node /opt/monitoring-dashboard/dist/index.cjs
 Restart=on-failure
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=monitoring-dashboard
-Environment=NODE_ENV=production
-Environment=PORT=5000
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/monitoring-dashboard
 
 [Install]
 WantedBy=multi-user.target
