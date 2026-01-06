@@ -1000,3 +1000,52 @@ export async function deleteGroup(id: string): Promise<void> {
     throw new Error(err.error || 'Failed to delete group');
   }
 }
+
+// Monitor API types and functions
+export interface SiteMonitorStatus {
+  id: string;
+  siteId: string;
+  vcdStatus: string;
+  vcdResponseTime: number | null;
+  vcdLastCheck: string | null;
+  vcenterStatus: string;
+  vcenterResponseTime: number | null;
+  vcenterLastCheck: string | null;
+  nsxStatus: string;
+  nsxResponseTime: number | null;
+  nsxLastCheck: string | null;
+  criticalAlarmCount: number;
+  warningAlarmCount: number;
+  alarmDetails: { entity: string; alarm: string; status: string; time: string }[] | null;
+  alarmsLastCheck: string | null;
+  overallStatus: string;
+  lastError: string | null;
+  updatedAt: string;
+}
+
+export async function fetchAllMonitorStatuses(): Promise<SiteMonitorStatus[]> {
+  const response = await fetch('/api/monitor/status', { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch monitor statuses');
+  }
+  return response.json();
+}
+
+export async function fetchMonitorStatus(siteId: string): Promise<SiteMonitorStatus> {
+  const response = await fetch(`/api/monitor/status/${siteId}`, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch monitor status');
+  }
+  return response.json();
+}
+
+export async function triggerMonitorCheck(siteId: string): Promise<SiteMonitorStatus> {
+  const response = await fetch(`/api/monitor/check/${siteId}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to trigger monitor check');
+  }
+  return response.json();
+}

@@ -14,13 +14,16 @@ import {
   type InsertGroup,
   type UserGroup,
   type InsertUserGroup,
+  type SiteMonitorStatus,
+  type InsertSiteMonitorStatus,
   users,
   platformSites,
   tenantCommitLevels,
   globalConfig,
   siteStorageConfig,
   groups,
-  userGroups
+  userGroups,
+  siteMonitorStatus
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -66,6 +69,10 @@ export interface IStorage {
   getStorageConfigBySite(siteId: string): Promise<SiteStorageConfig[]>;
   upsertStorageConfig(config: InsertSiteStorageConfig): Promise<SiteStorageConfig>;
   deleteStorageConfig(siteId: string, tierName: string): Promise<boolean>;
+  
+  getMonitorStatus(siteId: string): Promise<SiteMonitorStatus | undefined>;
+  getAllMonitorStatuses(): Promise<SiteMonitorStatus[]>;
+  upsertMonitorStatus(status: InsertSiteMonitorStatus): Promise<SiteMonitorStatus>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -307,6 +314,31 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return true;
+  }
+
+  async getMonitorStatus(siteId: string): Promise<SiteMonitorStatus | undefined> {
+    const [status] = await db.select().from(siteMonitorStatus).where(eq(siteMonitorStatus.siteId, siteId));
+    return status;
+  }
+
+  async getAllMonitorStatuses(): Promise<SiteMonitorStatus[]> {
+    return db.select().from(siteMonitorStatus);
+  }
+
+  async upsertMonitorStatus(status: InsertSiteMonitorStatus): Promise<SiteMonitorStatus> {
+    const existing = await this.getMonitorStatus(status.siteId);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(siteMonitorStatus)
+        .set({ ...status, updatedAt: new Date() })
+        .where(eq(siteMonitorStatus.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(siteMonitorStatus).values(status).returning();
+      return created;
+    }
   }
 }
 

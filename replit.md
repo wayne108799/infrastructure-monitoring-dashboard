@@ -90,6 +90,9 @@ Each site can have custom usable storage capacity configured per tier:
 - `POST /api/vspc/:siteId/test-connection` - Test VSPC connection for a VCD site
 - `GET /api/vspc/:siteId/summary` - Get VSPC backup summary for a VCD site
 - `GET /api/vspc/:siteId/backup-by-org` - Get VSPC backup metrics by organization ID
+- `GET /api/monitor/status` - Get all site monitor statuses
+- `GET /api/monitor/status/:siteId` - Get specific site monitor status
+- `POST /api/monitor/check/:siteId` - Trigger manual monitor check
 
 ## Minimum Commit Levels
 On the Details page, each tenant card has a "Set Commit" button to define minimum resource commitments:
@@ -120,7 +123,26 @@ The Overages page at `/overages` provides time-series visualization of resource 
 - **Detail breakdown**: Per-tenant overage details with max overage values
 - Data sourced from polling snapshots captured every 4 hours
 
+## Site Health Monitoring
+The dashboard now includes a Monitor tile for each site showing health status:
+- **URL Health Checks**: Monitors VCD, vCenter, and NSX endpoint reachability
+- **Response Times**: Displays response times for each service check
+- **vCenter Alarms**: Fetches and displays critical/warning alarm counts from vCenter
+- **Status Indicators**: Green (ok), yellow (warning), red (error) status per service
+- **Auto-refresh**: Monitor service runs every 5 minutes to check all sites
+- **API Endpoints**:
+  - `GET /api/monitor/status` - Get all site monitor statuses
+  - `GET /api/monitor/status/:siteId` - Get specific site monitor status
+  - `POST /api/monitor/check/:siteId` - Trigger manual monitor check
+- **Database**: Monitor results stored in `siteMonitorStatus` table
+- **vCenter Credentials**: Optional vcenterUsername/vcenterPassword fields in site config
+
 ## Recent Changes
+- **Site Health Monitoring**: Added monitor tile to dashboard showing health per site
+  - VCD/vCenter/NSX URL health checks with response times
+  - vCenter alarm detection (critical/warning counts)
+  - Monitor service runs every 5 minutes
+  - Manual check trigger via API
 - **VSPC Integration**: Added Veeam Service Provider Console integration for VCD sites
   - VSPC configuration fields added to VCD site settings (URL, username, password)
   - Details page displays backup metrics per organization using org ID matching

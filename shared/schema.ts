@@ -97,6 +97,9 @@ export const platformSites = pgTable("platform_sites", {
   vspcUrl: text("vspc_url"),
   vspcUsername: text("vspc_username"),
   vspcPassword: text("vspc_password"),
+  // vCenter credentials for monitoring (separate from VCD)
+  vcenterUsername: text("vcenter_username"),
+  vcenterPassword: text("vcenter_password"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -221,3 +224,38 @@ export const insertTenantPollSnapshotSchema = createInsertSchema(tenantPollSnaps
 
 export type InsertTenantPollSnapshot = z.infer<typeof insertTenantPollSnapshotSchema>;
 export type TenantPollSnapshot = typeof tenantPollSnapshots.$inferSelect;
+
+// Site monitor status - stores health check results
+export const siteMonitorStatus = pgTable("site_monitor_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: text("site_id").notNull().unique(),
+  // URL health checks
+  vcdStatus: text("vcd_status").default("unknown"), // ok, error, unknown
+  vcdResponseTime: integer("vcd_response_time"), // ms
+  vcdLastCheck: timestamp("vcd_last_check"),
+  vcenterStatus: text("vcenter_status").default("unknown"),
+  vcenterResponseTime: integer("vcenter_response_time"),
+  vcenterLastCheck: timestamp("vcenter_last_check"),
+  nsxStatus: text("nsx_status").default("unknown"),
+  nsxResponseTime: integer("nsx_response_time"),
+  nsxLastCheck: timestamp("nsx_last_check"),
+  // vCenter alarms
+  criticalAlarmCount: integer("critical_alarm_count").default(0),
+  warningAlarmCount: integer("warning_alarm_count").default(0),
+  alarmDetails: jsonb("alarm_details").$type<{ entity: string; alarm: string; status: string; time: string }[]>(),
+  alarmsLastCheck: timestamp("alarms_last_check"),
+  // Overall status
+  overallStatus: text("overall_status").default("unknown"), // healthy, warning, critical, unknown
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_site_monitor_site").on(table.siteId),
+]);
+
+export const insertSiteMonitorStatusSchema = createInsertSchema(siteMonitorStatus).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertSiteMonitorStatus = z.infer<typeof insertSiteMonitorStatusSchema>;
+export type SiteMonitorStatus = typeof siteMonitorStatus.$inferSelect;

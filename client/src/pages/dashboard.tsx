@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter, Download, Loader2, ExternalLink, RefreshCw, Clock } from 'lucide-react';
+import { AlertCircle, Cpu, HardDrive, Database, Globe, Server, Activity, Filter, Download, Loader2, ExternalLink, RefreshCw, Clock, Shield, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   fetchSites, 
@@ -13,13 +13,15 @@ import {
   fetchPollingStatus,
   triggerPoll,
   fetchAllStorageConfigs,
+  fetchAllMonitorStatuses,
   getPlatformShortName,
   getPlatformColor,
   type Site, 
   type SiteSummary,
   type PlatformType,
   type PollingStatus,
-  type SiteStorageConfig
+  type SiteStorageConfig,
+  type SiteMonitorStatus
 } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -146,6 +148,19 @@ export default function Dashboard() {
     queryFn: fetchAllStorageConfigs,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch monitor statuses for all sites
+  const { data: monitorStatuses = [] } = useQuery({
+    queryKey: ['monitorStatuses'],
+    queryFn: fetchAllMonitorStatuses,
+    staleTime: 60 * 1000, // Refresh every minute
+    refetchInterval: 60 * 1000,
+  });
+
+  // Helper to get monitor status for a site
+  const getMonitorStatus = (siteId: string): SiteMonitorStatus | undefined => {
+    return monitorStatuses.find(s => s.siteId === siteId);
+  };
 
   // Helper to get configured storage capacity for a site
   const getConfiguredStorageCapacity = (siteId: string): number | null => {
@@ -453,7 +468,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <Card className="border-border/50">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -627,6 +642,105 @@ export default function Dashboard() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Monitor Status Card */}
+                {(() => {
+                  const monitorStatus = getMonitorStatus(site.id);
+                  const getStatusIcon = (status: string) => {
+                    switch (status) {
+                      case 'ok': return <CheckCircle className="h-3 w-3 text-green-500" />;
+                      case 'error': return <XCircle className="h-3 w-3 text-red-500" />;
+                      default: return <AlertTriangle className="h-3 w-3 text-yellow-500" />;
+                    }
+                  };
+                  const getOverallStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'healthy': return 'text-green-500';
+                      case 'warning': return 'text-yellow-500';
+                      case 'critical': return 'text-red-500';
+                      default: return 'text-muted-foreground';
+                    }
+                  };
+                  
+                  return (
+                    <Card className="border-border/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-blue-500" />
+                          Monitor
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {!monitorStatus ? (
+                          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+                            <div className="text-center">
+                              <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p>Awaiting first check...</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Overall</span>
+                              <span className={cn("text-sm font-semibold capitalize", getOverallStatusColor(monitorStatus.overallStatus))}>
+                                {monitorStatus.overallStatus}
+                              </span>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">VCD</span>
+                                <div className="flex items-center gap-1">
+                                  {getStatusIcon(monitorStatus.vcdStatus)}
+                                  {monitorStatus.vcdResponseTime && (
+                                    <span className="text-muted-foreground">{monitorStatus.vcdResponseTime}ms</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">vCenter</span>
+                                <div className="flex items-center gap-1">
+                                  {getStatusIcon(monitorStatus.vcenterStatus)}
+                                  {monitorStatus.vcenterResponseTime && (
+                                    <span className="text-muted-foreground">{monitorStatus.vcenterResponseTime}ms</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">NSX</span>
+                                <div className="flex items-center gap-1">
+                                  {getStatusIcon(monitorStatus.nsxStatus)}
+                                  {monitorStatus.nsxResponseTime && (
+                                    <span className="text-muted-foreground">{monitorStatus.nsxResponseTime}ms</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {(monitorStatus.criticalAlarmCount > 0 || monitorStatus.warningAlarmCount > 0) && (
+                              <div className="pt-2 border-t border-border">
+                                <div className="flex items-center gap-2 text-xs">
+                                  <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                                  <span className="font-medium">Alarms:</span>
+                                  {monitorStatus.criticalAlarmCount > 0 && (
+                                    <span className="text-red-500">{monitorStatus.criticalAlarmCount} Critical</span>
+                                  )}
+                                  {monitorStatus.warningAlarmCount > 0 && (
+                                    <span className="text-yellow-500">{monitorStatus.warningAlarmCount} Warning</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="text-center text-xs text-muted-foreground pt-2">
+                              Last check: {monitorStatus.updatedAt ? new Date(monitorStatus.updatedAt).toLocaleTimeString() : 'N/A'}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </div>
             </div>
           ))}

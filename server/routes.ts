@@ -6,6 +6,7 @@ import { VspcClient, createVspcClient } from "./lib/platforms/vspcClient";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
 import { pollAllSites, getLatestSiteSummary, getLatestTenantAllocations, getLastPollTime, getHighWaterMarkForMonth, getAvailableMonths, getOverageData } from "./lib/pollingService";
+import { getAllMonitorStatuses, getMonitorStatusForSite, triggerMonitorCheck, startMonitorService } from "./lib/monitorService";
 
 const vspcClientCache = new Map<string, VspcClient>();
 
@@ -1672,6 +1673,45 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Monitor status endpoints
+  app.get('/api/monitor/status', async (req, res) => {
+    try {
+      const statuses = await getAllMonitorStatuses();
+      res.json(statuses);
+    } catch (error: any) {
+      log(`Error fetching monitor statuses: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/monitor/status/:siteId', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const status = await getMonitorStatusForSite(siteId);
+      if (!status) {
+        return res.json({ siteId, overallStatus: 'unknown', message: 'No monitor data yet' });
+      }
+      res.json(status);
+    } catch (error: any) {
+      log(`Error fetching monitor status for ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/monitor/check/:siteId', async (req, res) => {
+    try {
+      const { siteId } = req.params;
+      const status = await triggerMonitorCheck(siteId);
+      res.json(status);
+    } catch (error: any) {
+      log(`Error triggering monitor check for ${req.params.siteId}: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Start the monitor service
+  startMonitorService();
 
   return httpServer;
 }
