@@ -25,10 +25,16 @@ async function checkUrlHealth(url: string): Promise<{ status: 'ok' | 'error'; re
     return { status: 'error', responseTime: 0, error: 'URL not configured' };
   }
 
+  // Ensure URL has protocol prefix
+  let fullUrl = url;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    fullUrl = `https://${url}`;
+  }
+
   const startTime = Date.now();
   
   try {
-    const response = await fetch(url, {
+    const response = await fetch(fullUrl, {
       method: 'HEAD',
       // @ts-ignore
       agent,
