@@ -1317,6 +1317,10 @@ export async function registerRoutes(
         commitNotes: string;
         vcpuOverage: number;
         ramOverageGB: number;
+        storageHpsOverageGB: number;
+        storageSpsOverageGB: number;
+        storageVvolOverageGB: number;
+        storageOtherOverageGB: number;
       }
 
       const rows: ExportRow[] = [];
@@ -1347,8 +1351,36 @@ export async function registerRoutes(
             // Calculate overages (used - commit, if positive)
             const commitVcpuNum = commitLevel?.vcpuCount ? parseFloat(commitLevel.vcpuCount) : 0;
             const commitRamGBNum = commitLevel?.ramGB ? parseFloat(commitLevel.ramGB) : 0;
+            const commitHpsGBNum = commitLevel?.storageHpsGB ? parseFloat(commitLevel.storageHpsGB) : 0;
+            const commitSpsGBNum = commitLevel?.storageSpsGB ? parseFloat(commitLevel.storageSpsGB) : 0;
+            const commitVvolGBNum = commitLevel?.storageVvolGB ? parseFloat(commitLevel.storageVvolGB) : 0;
+            const commitOtherGBNum = commitLevel?.storageOtherGB ? parseFloat(commitLevel.storageOtherGB) : 0;
+            
             const vcpuOverage = commitVcpuNum > 0 ? Math.max(0, Math.round((vcpuUsed - commitVcpuNum) * 100) / 100) : 0;
             const ramOverageGB = commitRamGBNum > 0 ? Math.max(0, Math.round((ramUsedGB - commitRamGBNum) * 100) / 100) : 0;
+            
+            // Calculate storage used per tier for overage calculation
+            let hpsUsedGB = 0, spsUsedGB = 0, vvolUsedGB = 0, otherUsedGB = 0;
+            if (tenant.storageTiers && tenant.storageTiers.length > 0) {
+              for (const tier of tenant.storageTiers) {
+                const tierUsedGB = tier.used / 1024;
+                const lowerName = tier.name.toLowerCase();
+                if (lowerName.includes('hps') || lowerName.includes('high')) {
+                  hpsUsedGB += tierUsedGB;
+                } else if (lowerName.includes('sps') || lowerName.includes('standard')) {
+                  spsUsedGB += tierUsedGB;
+                } else if (lowerName.includes('vvol')) {
+                  vvolUsedGB += tierUsedGB;
+                } else {
+                  otherUsedGB += tierUsedGB;
+                }
+              }
+            }
+            
+            const storageHpsOverageGB = commitHpsGBNum > 0 ? Math.max(0, Math.round((hpsUsedGB - commitHpsGBNum) * 100) / 100) : 0;
+            const storageSpsOverageGB = commitSpsGBNum > 0 ? Math.max(0, Math.round((spsUsedGB - commitSpsGBNum) * 100) / 100) : 0;
+            const storageVvolOverageGB = commitVvolGBNum > 0 ? Math.max(0, Math.round((vvolUsedGB - commitVvolGBNum) * 100) / 100) : 0;
+            const storageOtherOverageGB = commitOtherGBNum > 0 ? Math.max(0, Math.round((otherUsedGB - commitOtherGBNum) * 100) / 100) : 0;
             
             const baseRow = {
               timestamp,
@@ -1381,6 +1413,10 @@ export async function registerRoutes(
               commitNotes: commitLevel?.notes || '',
               vcpuOverage,
               ramOverageGB,
+              storageHpsOverageGB,
+              storageSpsOverageGB,
+              storageVvolOverageGB,
+              storageOtherOverageGB,
             };
             
             // If tenant has storage tiers, create a row for each tier
@@ -1444,6 +1480,10 @@ export async function registerRoutes(
         'Commit Notes',
         'vCPU Overage',
         'RAM Overage (GB)',
+        'HPS Overage (GB)',
+        'SPS Overage (GB)',
+        'VVol Overage (GB)',
+        'Other Storage Overage (GB)',
       ];
 
       const csvRows = [headers.join(',')];
@@ -1479,6 +1519,10 @@ export async function registerRoutes(
           `"${row.commitNotes}"`,
           row.vcpuOverage,
           row.ramOverageGB,
+          row.storageHpsOverageGB,
+          row.storageSpsOverageGB,
+          row.storageVvolOverageGB,
+          row.storageOtherOverageGB,
         ].join(','));
       }
 
