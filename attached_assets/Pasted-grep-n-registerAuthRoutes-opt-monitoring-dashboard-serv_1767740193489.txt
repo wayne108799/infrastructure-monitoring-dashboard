@@ -1,0 +1,39 @@
+grep -n "registerAuthRoutes" /opt/monitoring-dashboard/server/authRoutes.ts | head -5
+
+# Force a fresh rebuild
+cd /opt/monitoring-dashboard
+sudo rm -rf dist
+sudo -u www-data npm run build
+
+# Restart and check logs
+sudo systemctl restart monitoring-dashboard
+sleep 3
+sudo journalctl -u monitoring-dashboard -n 20 --no-pager
+6:import { registerAuthRoutes } from "./authRoutes";
+57:export async function registerAuthRoutes(app: Express): Promise<void> {
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+sh: 1: tsx: not found
+Jan 06 22:52:32 montorserver monitoring-dashboard[919654]: 10:52:32 PM [polling] Pruned snapshots older than 30 days
+Jan 06 22:56:22 montorserver systemd[1]: Stopping monitoring-dashboard.service - Infrastructure Monitoring Dashboard...
+Jan 06 22:56:22 montorserver systemd[1]: monitoring-dashboard.service: Deactivated successfully.
+Jan 06 22:56:22 montorserver systemd[1]: Stopped monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:56:22 montorserver systemd[1]: monitoring-dashboard.service: Consumed 2.934s CPU time.
+Jan 06 22:56:22 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]: node:internal/modules/cjs/loader:1210
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:   throw err;
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:   ^
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]: Error: Cannot find module '/opt/monitoring-dashboard/dist/index.cjs'
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:     at node:internal/main/run_main_module:28:49 {
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:   code: 'MODULE_NOT_FOUND',
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]:   requireStack: []
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]: }
+Jan 06 22:56:22 montorserver monitoring-dashboard[919717]: Node.js v20.19.6
+Jan 06 22:56:22 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Jan 06 22:56:22 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
+hivelocity@montorserver:/opt/monitoring-dashboard$
