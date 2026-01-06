@@ -21,7 +21,6 @@ The dashboard displays resource availability, usage, and allocation metrics for:
   - `server/lib/platforms/proxmoxClient.ts` - Proxmox with ticket-based auth
   - `server/lib/platforms/index.ts` - Platform registry and factory
 - **Routes**: `server/routes.ts` - REST API endpoints for all platforms
-  - `server/lib/platforms/veeamClient.ts` - Veeam ONE with OAuth 2.0 token auth
   - `server/lib/platforms/vspcClient.ts` - VSPC (Veeam Service Provider Console) with OAuth 2.0 token auth
 
 ### Frontend (`client/`)
@@ -63,16 +62,6 @@ PROXMOX_PVE1_NAME=Proxmox Cluster 1
 PROXMOX_PVE1_LOCATION=EU-Central
 ```
 
-### Veeam ONE Sites
-```
-VEEAM_SITES=VEEAM1
-VEEAM_VEEAM1_URL=https://veeam-one.example.com:1239
-VEEAM_VEEAM1_USERNAME=administrator
-VEEAM_VEEAM1_PASSWORD=secret
-VEEAM_VEEAM1_NAME=Veeam ONE Server
-VEEAM_VEEAM1_LOCATION=US-East
-```
-
 ## Storage Capacity Configuration
 Each site can have custom usable storage capacity configured per tier:
 - Settings page allows viewing discovered storage tiers from VCD
@@ -98,9 +87,6 @@ Each site can have custom usable storage capacity configured per tier:
 - `GET /api/report/high-water-mark` - Get high water mark usage for billing (params: `year`, `month`)
 - `GET /api/report/available-months` - List months with polling data for billing reports
 - `GET /api/report/overages` - Get overage data over time (params: `startDate`, `endDate`, `siteId`, `tenantId`)
-- `GET /api/veeam/summary` - Get Veeam ONE backup summary across all sites
-- `GET /api/veeam/sites/:siteId` - Get Veeam ONE backup details for a specific site
-- `GET /api/veeam/backup-by-org` - Get backup metrics grouped by organization name (for tenant matching)
 - `POST /api/vspc/:siteId/test-connection` - Test VSPC connection for a VCD site
 - `GET /api/vspc/:siteId/summary` - Get VSPC backup summary for a VCD site
 - `GET /api/vspc/:siteId/backup-by-org` - Get VSPC backup metrics by organization ID
@@ -153,20 +139,12 @@ The Overages page at `/overages` provides time-series visualization of resource 
   - API endpoints: `/api/report/high-water-mark`, `/api/report/available-months`
   - Input validation on year/month parameters with helpful error messages
   - Empty state handling when no polling data exists
-- **Per-Tenant Backup Metrics**: Details page now shows backup status per organization
-  - Protected VMs count, backup storage used, protection coverage percentage
-  - Metrics matched from Veeam ONE to VCD organizations using normalized name matching
-  - Only displays when Veeam is configured and has data for the organization
-  - Endpoint: `GET /api/veeam/backup-by-org`
-- **Veeam ONE UI Configuration**: Settings page now includes dedicated form to configure Veeam ONE
-  - Enter URL, username, password, display name, and location
-  - Test connection button validates connectivity before saving
-  - Configuration stored in database (globalConfig table)
-  - Endpoints: `GET/POST /api/veeam/config`, `POST /api/veeam/config/test`
+- **Veeam ONE Removal**: Removed Veeam ONE integration completely
+  - VSPC integration remains for backup metrics on VCD sites
+  - Veeam ONE platform type, routes, UI configuration, and client code removed
 - **Deployment Documentation**: Updated DEPLOYMENT.md for Ubuntu 24.04 LTS
   - Quick start guide for fresh installations
   - Architecture diagram with all platform connections
-  - Veeam ONE configuration instructions
 - **Provision Page**: New auto-provisioning feature at `/provision` to create VCD resources
   - Creates Organization, Org VDC, Edge Gateway, and SNAT rules in a single workflow
   - Form-based interface for selecting target VCD site and configuring resources

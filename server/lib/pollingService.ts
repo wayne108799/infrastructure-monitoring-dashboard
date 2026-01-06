@@ -29,9 +29,6 @@ export async function pollAllSites(): Promise<void> {
       try {
         const platformType = client.getPlatformType();
         
-        // Skip Veeam for now - it's a separate system
-        if (platformType === 'veeam') continue;
-        
         log(`Polling site ${siteId} (${platformType})...`, 'polling');
         
         // Get site summary and tenants

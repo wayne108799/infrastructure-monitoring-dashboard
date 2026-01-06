@@ -33,16 +33,12 @@ import {
   getPlatformDisplayName,
   getPlatformShortName,
   getPlatformColor,
-  fetchVeeamConfig,
-  saveVeeamConfig,
-  testVeeamConnection,
   fetchStorageConfig,
   fetchDiscoveredStorage,
   saveStorageConfig,
   type PlatformSiteConfig,
   type CreatePlatformSiteConfig,
   type PlatformType,
-  type VeeamConfig,
   type SiteStorageConfig,
   type DiscoveredStorageTier
 } from '@/lib/api';
@@ -54,8 +50,6 @@ function getPlatformIcon(type: PlatformType) {
     case 'cloudstack':
       return <Server className="h-5 w-5" />;
     case 'proxmox':
-      return <HardDrive className="h-5 w-5" />;
-    case 'veeam':
       return <HardDrive className="h-5 w-5" />;
     default:
       return <Server className="h-5 w-5" />;
@@ -78,7 +72,6 @@ interface SiteFormData {
   vcenterUrl: string;
   nsxUrl: string;
   ariaUrl: string;
-  veeamUrl: string;
   vspcUrl: string;
   vspcUsername: string;
   vspcPassword: string;
@@ -100,7 +93,6 @@ const initialFormData: SiteFormData = {
   vcenterUrl: '',
   nsxUrl: '',
   ariaUrl: '',
-  veeamUrl: '',
   vspcUrl: '',
   vspcUsername: '',
   vspcPassword: '',
@@ -113,18 +105,6 @@ export default function Settings() {
   const [editingSite, setEditingSite] = useState<PlatformSiteConfig | null>(null);
   const [formData, setFormData] = useState<SiteFormData>(initialFormData);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
-  
-  // Veeam config state
-  const [veeamForm, setVeeamForm] = useState<VeeamConfig>({
-    url: '',
-    username: '',
-    password: '',
-    name: 'Veeam ONE',
-    location: '',
-    isEnabled: false,
-  });
-  const [testingVeeam, setTestingVeeam] = useState(false);
-  const [savingVeeam, setSavingVeeam] = useState(false);
   
   // Storage config state
   const [storageConfigSite, setStorageConfigSite] = useState<PlatformSiteConfig | null>(null);
@@ -142,19 +122,6 @@ export default function Settings() {
     queryKey: ['configuredSites'],
     queryFn: fetchConfiguredSites,
   });
-  
-  // Load Veeam config
-  const { data: veeamConfig } = useQuery({
-    queryKey: ['veeamConfig'],
-    queryFn: fetchVeeamConfig,
-  });
-  
-  // Update form when config loads
-  useEffect(() => {
-    if (veeamConfig) {
-      setVeeamForm(veeamConfig);
-    }
-  }, [veeamConfig]);
 
   const createMutation = useMutation({
     mutationFn: createSiteConfig,
@@ -273,7 +240,6 @@ export default function Settings() {
       if (formData.vcenterUrl) config.vcenterUrl = formData.vcenterUrl;
       if (formData.nsxUrl) config.nsxUrl = formData.nsxUrl;
       if (formData.ariaUrl) config.ariaUrl = formData.ariaUrl;
-      if (formData.veeamUrl) config.veeamUrl = formData.veeamUrl;
       // Include VSPC configuration for VCD
       if (formData.vspcUrl) config.vspcUrl = formData.vspcUrl;
       if (formData.vspcUsername) config.vspcUsername = formData.vspcUsername;
@@ -318,7 +284,6 @@ export default function Settings() {
       vcenterUrl: site.vcenterUrl || '',
       nsxUrl: site.nsxUrl || '',
       ariaUrl: site.ariaUrl || '',
-      veeamUrl: site.veeamUrl || '',
       vspcUrl: site.vspcUrl || '',
       vspcUsername: site.vspcUsername || '',
       vspcPassword: site.vspcPassword || '',
@@ -329,58 +294,6 @@ export default function Settings() {
     setIsAddDialogOpen(false);
     setEditingSite(null);
     setFormData(initialFormData);
-  };
-
-  const handleSaveVeeamConfig = async () => {
-    setSavingVeeam(true);
-    try {
-      await saveVeeamConfig(veeamForm);
-      queryClient.invalidateQueries({ queryKey: ['veeamConfig'] });
-      queryClient.invalidateQueries({ queryKey: ['veeamSummary'] });
-      toast({
-        title: 'Veeam Configuration Saved',
-        description: 'The Veeam ONE configuration has been saved. Restart the server to apply changes.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSavingVeeam(false);
-    }
-  };
-
-  const handleTestVeeamConnection = async () => {
-    setTestingVeeam(true);
-    try {
-      const result = await testVeeamConnection({
-        url: veeamForm.url,
-        username: veeamForm.username,
-        password: veeamForm.password,
-      });
-      if (result.success) {
-        toast({
-          title: 'Connection Successful',
-          description: result.message || 'Successfully connected to Veeam ONE.',
-        });
-      } else {
-        toast({
-          title: 'Connection Failed',
-          description: result.error || 'Could not connect to Veeam ONE.',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Connection Test Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setTestingVeeam(false);
-    }
   };
 
   // Storage config handlers
@@ -707,16 +620,6 @@ export default function Settings() {
                 placeholder="https://aria.example.com"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="veeamUrl">Veeam Site Backup URL</Label>
-              <Input
-                id="veeamUrl"
-                data-testid="input-veeam-url"
-                value={formData.veeamUrl}
-                onChange={(e) => setFormData({ ...formData, veeamUrl: e.target.value })}
-                placeholder="https://veeam.example.com"
-              />
-            </div>
           </div>
         </div>
       )}
@@ -978,124 +881,6 @@ export default function Settings() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="mt-8">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div
-                  className="p-2 rounded-lg"
-                  style={{ backgroundColor: '#00B33620', color: '#00B336' }}
-                >
-                  <HardDrive className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle>Veeam ONE Integration</CardTitle>
-                  <CardDescription>
-                    Monitor backup coverage across all VCD sites with a single Veeam ONE instance.
-                  </CardDescription>
-                </div>
-              </div>
-              {veeamForm.isEnabled && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600">
-                  Enabled
-                </span>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="veeam-url">API URL</Label>
-                <Input
-                  id="veeam-url"
-                  data-testid="input-veeam-url"
-                  value={veeamForm.url}
-                  onChange={(e) => setVeeamForm({ ...veeamForm, url: e.target.value })}
-                  placeholder="https://veeam-one.example.com:1239"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="veeam-name">Display Name</Label>
-                <Input
-                  id="veeam-name"
-                  data-testid="input-veeam-name"
-                  value={veeamForm.name}
-                  onChange={(e) => setVeeamForm({ ...veeamForm, name: e.target.value })}
-                  placeholder="Veeam ONE"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="veeam-username">Username</Label>
-                <Input
-                  id="veeam-username"
-                  data-testid="input-veeam-username"
-                  value={veeamForm.username}
-                  onChange={(e) => setVeeamForm({ ...veeamForm, username: e.target.value })}
-                  placeholder="administrator"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="veeam-password">Password</Label>
-                <Input
-                  id="veeam-password"
-                  data-testid="input-veeam-password"
-                  type="password"
-                  value={veeamForm.password}
-                  onChange={(e) => setVeeamForm({ ...veeamForm, password: e.target.value })}
-                  placeholder="********"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="veeam-location">Location</Label>
-              <Input
-                id="veeam-location"
-                data-testid="input-veeam-location"
-                value={veeamForm.location}
-                onChange={(e) => setVeeamForm({ ...veeamForm, location: e.target.value })}
-                placeholder="US-East"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="veeam-enabled"
-                data-testid="switch-veeam-enabled"
-                checked={veeamForm.isEnabled}
-                onCheckedChange={(checked) => setVeeamForm({ ...veeamForm, isEnabled: checked })}
-              />
-              <Label htmlFor="veeam-enabled">Enable Veeam ONE Integration</Label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Veeam ONE REST API runs on port 1239 by default. Include the port in your URL.
-            </p>
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={handleTestVeeamConnection}
-                disabled={testingVeeam || !veeamForm.url || !veeamForm.username || !veeamForm.password}
-                data-testid="button-test-veeam"
-              >
-                {testingVeeam ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <TestTube className="mr-2 h-4 w-4" />
-                )}
-                Test Connection
-              </Button>
-              <Button
-                onClick={handleSaveVeeamConfig}
-                disabled={savingVeeam}
-                data-testid="button-save-veeam"
-              >
-                {savingVeeam && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Configuration
-              </Button>
-            </div>
           </CardContent>
         </Card>
 

@@ -1,13 +1,12 @@
 // API client for multi-platform infrastructure monitoring
 
-export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox' | 'veeam';
+export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox';
 
 export interface ManagementLinks {
   vcd: string | null;
   vcenter: string | null;
   nsx: string | null;
   aria: string | null;
-  veeam: string | null;
 }
 
 export interface Site {
@@ -278,8 +277,6 @@ export function getPlatformDisplayName(type: PlatformType): string {
       return 'Apache CloudStack';
     case 'proxmox':
       return 'Proxmox VE';
-    case 'veeam':
-      return 'Veeam ONE';
     default:
       return type;
   }
@@ -296,8 +293,6 @@ export function getPlatformShortName(type: PlatformType): string {
       return 'VPS/VDS';
     case 'proxmox':
       return 'Other';
-    case 'veeam':
-      return 'Veeam';
     default:
       return type;
   }
@@ -314,8 +309,6 @@ export function getPlatformColor(type: PlatformType): string {
       return '#F68D2E'; // CloudStack orange
     case 'proxmox':
       return '#E57000'; // Proxmox orange
-    case 'veeam':
-      return '#00B336'; // Veeam green
     default:
       return '#6B7280';
   }
@@ -338,7 +331,6 @@ export interface PlatformSiteConfig {
   vcenterUrl?: string | null;
   nsxUrl?: string | null;
   ariaUrl?: string | null;
-  veeamUrl?: string | null;
   vspcUrl?: string | null;
   vspcUsername?: string | null;
   vspcPassword?: string | null;
@@ -362,7 +354,6 @@ export interface CreatePlatformSiteConfig {
   vcenterUrl?: string;
   nsxUrl?: string;
   ariaUrl?: string;
-  veeamUrl?: string;
   vspcUrl?: string;
   vspcUsername?: string;
   vspcPassword?: string;
@@ -676,114 +667,7 @@ export async function deleteCommitLevel(siteId: string, tenantId: string): Promi
   }
 }
 
-// Veeam ONE types
-export interface VeeamBackupMetrics {
-  protectedVmCount: number;
-  unprotectedVmCount: number;
-  totalVmCount: number;
-  protectionPercentage: number;
-  lastBackupDate?: string;
-}
-
-export interface VeeamRepository {
-  id: string;
-  name: string;
-  capacityGB: number;
-  usedSpaceGB: number;
-  freeSpaceGB: number;
-  usagePercentage: number;
-}
-
-export interface VeeamSiteSummary {
-  siteId: string;
-  siteName: string;
-  siteLocation: string;
-  platformType: 'veeam';
-  backup: VeeamBackupMetrics;
-  repositories: VeeamRepository[];
-  totalRepositoryCapacityGB: number;
-  totalRepositoryUsedGB: number;
-  totalRepositoryFreeGB: number;
-}
-
-export interface VeeamSummaryResponse {
-  configured: boolean;
-  message?: string;
-  sites: VeeamSiteSummary[];
-  totals: {
-    protectedVmCount: number;
-    unprotectedVmCount: number;
-    totalVmCount: number;
-    protectionPercentage: number;
-    repositoryCapacityGB: number;
-    repositoryUsedGB: number;
-    repositoryFreeGB: number;
-  };
-}
-
-/**
- * Fetch Veeam ONE backup summary
- */
-export async function fetchVeeamSummary(): Promise<VeeamSummaryResponse> {
-  const response = await fetch('/api/veeam/summary');
-  if (!response.ok) {
-    throw new Error('Failed to fetch Veeam summary');
-  }
-  return response.json();
-}
-
-// Veeam ONE Configuration
-export interface VeeamConfig {
-  url: string;
-  username: string;
-  password: string;
-  name: string;
-  location: string;
-  isEnabled: boolean;
-}
-
-/**
- * Fetch Veeam ONE configuration
- */
-export async function fetchVeeamConfig(): Promise<VeeamConfig> {
-  const response = await fetch('/api/veeam/config');
-  if (!response.ok) {
-    throw new Error('Failed to fetch Veeam config');
-  }
-  return response.json();
-}
-
-/**
- * Save Veeam ONE configuration
- */
-export async function saveVeeamConfig(config: VeeamConfig): Promise<{ success: boolean; config: VeeamConfig }> {
-  const response = await fetch('/api/veeam/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to save Veeam config');
-  }
-  return response.json();
-}
-
-/**
- * Test Veeam ONE connection
- */
-export async function testVeeamConnection(config: { url: string; username: string; password: string }): Promise<{ success: boolean; message?: string; error?: string }> {
-  const response = await fetch('/api/veeam/test-connection', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to test Veeam connection');
-  }
-  return response.json();
-}
-
-// Backup metrics by organization
+// Backup metrics by organization (VSPC)
 export interface OrgBackupMetrics {
   orgId?: string;
   orgName?: string;
@@ -797,17 +681,6 @@ export interface BackupByOrgResponse {
   configured: boolean;
   siteId?: string;
   organizations: Record<string, OrgBackupMetrics>;
-}
-
-/**
- * Fetch backup metrics grouped by organization name (legacy Veeam ONE)
- */
-export async function fetchBackupByOrg(): Promise<BackupByOrgResponse> {
-  const response = await fetch('/api/veeam/backup-by-org');
-  if (!response.ok) {
-    throw new Error('Failed to fetch backup metrics by org');
-  }
-  return response.json();
 }
 
 /**

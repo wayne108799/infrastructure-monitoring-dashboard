@@ -1,6 +1,6 @@
-// Unified Platform Interface for VCD, CloudStack, Proxmox, and Veeam ONE
+// Unified Platform Interface for VCD, CloudStack, and Proxmox
 
-export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox' | 'veeam';
+export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox';
 
 export interface PlatformConfig {
   type: PlatformType;
@@ -109,16 +109,6 @@ export interface BackupRepository {
   usedSpaceGB: number;
   freeSpaceGB: number;
   usagePercentage: number;
-}
-
-export interface VeeamSiteSummary {
-  siteId: string;
-  platformType: 'veeam';
-  backup: BackupMetrics;
-  repositories: BackupRepository[];
-  totalRepositoryCapacityGB: number;
-  totalRepositoryUsedGB: number;
-  totalRepositoryFreeGB: number;
 }
 
 /**

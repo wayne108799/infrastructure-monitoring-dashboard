@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { log } from "./index";
-import { platformRegistry, type PlatformType, type SiteSummary, VeeamOneClient } from "./lib/platforms";
+import { platformRegistry, type PlatformType, type SiteSummary } from "./lib/platforms";
 import { VspcClient, createVspcClient } from "./lib/platforms/vspcClient";
 import { storage } from "./storage";
 import { insertPlatformSiteSchema, updatePlatformSiteSchema, insertTenantCommitLevelSchema } from "@shared/schema";
@@ -126,33 +126,6 @@ export async function registerRoutes(
     }
   }
   
-  // Load Veeam ONE config from globalConfig
-  try {
-    log(`Attempting to load Veeam ONE config from database...`, 'routes');
-    const veeamConfigJson = await storage.getGlobalConfig('veeam_config');
-    log(`Veeam config from DB: ${veeamConfigJson ? 'found' : 'not found'}`, 'routes');
-    if (veeamConfigJson) {
-      const veeamConfig = JSON.parse(veeamConfigJson);
-      log(`Parsed Veeam config: url=${veeamConfig.url}, hasUsername=${!!veeamConfig.username}, hasPassword=${!!veeamConfig.password}`, 'routes');
-      if (veeamConfig.url && veeamConfig.username && veeamConfig.password) {
-        platformRegistry.addSiteFromConfig({
-          siteId: 'VEEAM_GLOBAL',
-          platformType: 'veeam',
-          name: veeamConfig.name || 'Veeam ONE',
-          location: veeamConfig.location || '',
-          url: veeamConfig.url,
-          username: veeamConfig.username,
-          password: veeamConfig.password,
-        });
-        log(`Loaded Veeam ONE configuration from database`, 'routes');
-      } else {
-        log(`Veeam config incomplete - missing required fields`, 'routes');
-      }
-    }
-  } catch (error: any) {
-    log(`Warning: Could not load Veeam config: ${error.message}`, 'routes');
-  }
-
   /**
    * GET /api/sites
    * Get list of all configured sites across all platforms
@@ -176,7 +149,6 @@ export async function registerRoutes(
           vcenterUrl: dbSite.vcenterUrl,
           nsxUrl: dbSite.nsxUrl,
           ariaUrl: dbSite.ariaUrl,
-          veeamUrl: dbSite.veeamUrl,
         });
       }
 
@@ -195,7 +167,6 @@ export async function registerRoutes(
             vcenter: links.vcenterUrl || null,
             nsx: links.nsxUrl || null,
             aria: links.ariaUrl || null,
-            veeam: links.veeamUrl || null,
           },
         };
       });
@@ -221,7 +192,7 @@ export async function registerRoutes(
         name: type === 'vcd' ? 'VMware Cloud Director' : 
               type === 'cloudstack' ? 'Apache CloudStack' : 
               type === 'proxmox' ? 'Proxmox VE' : 
-              type === 'veeam' ? 'Veeam ONE' : type,
+              type,
         siteCount: sites.filter(s => s.platformType === type).length,
       }));
 
@@ -809,279 +780,6 @@ export async function registerRoutes(
       res.json({ totals, sites: summaries });
     } catch (error: any) {
       log(`Error fetching aggregated summary: ${error.message}`, 'routes');
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  /**
-   * GET /api/veeam/config
-   * Get Veeam ONE configuration
-   */
-  app.get('/api/veeam/config', async (req, res) => {
-    try {
-      const configJson = await storage.getGlobalConfig('veeam_config');
-      if (configJson) {
-        res.json(JSON.parse(configJson));
-      } else {
-        res.json({
-          url: '',
-          username: '',
-          password: '',
-          name: 'Veeam ONE',
-          location: '',
-          isEnabled: false,
-        });
-      }
-    } catch (error: any) {
-      log(`Error fetching Veeam config: ${error.message}`, 'routes');
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  /**
-   * POST /api/veeam/config
-   * Save Veeam ONE configuration
-   */
-  app.post('/api/veeam/config', async (req, res) => {
-    try {
-      const { url, username, password, name, location, isEnabled } = req.body;
-      const config = { url, username, password, name, location, isEnabled };
-      await storage.setGlobalConfig('veeam_config', JSON.stringify(config));
-      
-      // Note: Veeam client will be initialized on next server restart
-      // For immediate effect, a server restart is required after saving config
-      log(`Veeam config saved. Restart server to apply changes.`, 'routes');
-      
-      res.json({ success: true, config });
-    } catch (error: any) {
-      log(`Error saving Veeam config: ${error.message}`, 'routes');
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  /**
-   * POST /api/veeam/test-connection
-   * Test Veeam ONE connection
-   */
-  app.post('/api/veeam/test-connection', async (req, res) => {
-    try {
-      const { url, username, password } = req.body;
-      
-      if (!url || !username || !password) {
-        return res.status(400).json({ success: false, error: 'URL, username, and password are required' });
-      }
-
-      const testClient = new VeeamOneClient({
-        id: 'test',
-        url,
-        username,
-        password,
-        name: 'Test',
-        location: '',
-      });
-      
-      const result = await testClient.testConnectionWithError();
-      
-      if (result.success) {
-        res.json({ success: true, message: 'Successfully connected to Veeam ONE' });
-      } else {
-        res.json({ success: false, error: result.error || 'Could not connect to Veeam ONE' });
-      }
-    } catch (error: any) {
-      log(`Error testing Veeam connection: ${error.message}`, 'routes');
-      res.json({ success: false, error: `Connection failed: ${error.message}` });
-    }
-  });
-
-  /**
-   * GET /api/veeam/summary
-   * Get Veeam ONE backup summary across all Veeam sites
-   */
-  app.get('/api/veeam/summary', async (req, res) => {
-    try {
-      const veeamClients = platformRegistry.getClientsByType('veeam');
-      
-      if (veeamClients.length === 0) {
-        return res.json({
-          configured: false,
-          message: 'No Veeam ONE sites configured',
-          sites: [],
-          totals: {
-            protectedVmCount: 0,
-            unprotectedVmCount: 0,
-            totalVmCount: 0,
-            protectionPercentage: 0,
-            repositoryCapacityGB: 0,
-            repositoryUsedGB: 0,
-            repositoryFreeGB: 0,
-          },
-        });
-      }
-
-      const summaries = [];
-      
-      for (const client of veeamClients) {
-        try {
-          const veeamClient = client as VeeamOneClient;
-          const summary = await veeamClient.getVeeamSummary();
-          const siteInfo = client.getSiteInfo();
-          summaries.push({
-            ...summary,
-            siteId: siteInfo.id,
-            siteName: siteInfo.name,
-            siteLocation: siteInfo.location,
-          });
-        } catch (error: any) {
-          log(`Error fetching Veeam summary for ${client.getSiteInfo().id}: ${error.message}`, 'routes');
-        }
-      }
-
-      const totals = {
-        protectedVmCount: summaries.reduce((sum, s) => sum + s.backup.protectedVmCount, 0),
-        unprotectedVmCount: summaries.reduce((sum, s) => sum + s.backup.unprotectedVmCount, 0),
-        totalVmCount: summaries.reduce((sum, s) => sum + s.backup.totalVmCount, 0),
-        protectionPercentage: 0,
-        repositoryCapacityGB: summaries.reduce((sum, s) => sum + s.totalRepositoryCapacityGB, 0),
-        repositoryUsedGB: summaries.reduce((sum, s) => sum + s.totalRepositoryUsedGB, 0),
-        repositoryFreeGB: summaries.reduce((sum, s) => sum + s.totalRepositoryFreeGB, 0),
-      };
-
-      if (totals.totalVmCount > 0) {
-        totals.protectionPercentage = Math.round((totals.protectedVmCount / totals.totalVmCount) * 100);
-      }
-
-      res.json({
-        configured: true,
-        sites: summaries,
-        totals,
-      });
-    } catch (error: any) {
-      log(`Error fetching Veeam summary: ${error.message}`, 'routes');
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  /**
-   * GET /api/veeam/sites/:siteId
-   * Get Veeam ONE backup details for a specific site
-   */
-  app.get('/api/veeam/sites/:siteId', async (req, res) => {
-    try {
-      const { siteId } = req.params;
-      const client = platformRegistry.getClient(`veeam:${siteId}`) || platformRegistry.getClientBySiteId(siteId);
-
-      if (!client || client.getPlatformType() !== 'veeam') {
-        return res.status(404).json({ error: `Veeam site not found: ${siteId}` });
-      }
-
-      const veeamClient = client as VeeamOneClient;
-      const summary = await veeamClient.getVeeamSummary();
-      const siteInfo = client.getSiteInfo();
-
-      res.json({
-        ...summary,
-        siteId: siteInfo.id,
-        siteName: siteInfo.name,
-        siteLocation: siteInfo.location,
-      });
-    } catch (error: any) {
-      log(`Error fetching Veeam details for ${req.params.siteId}: ${error.message}`, 'routes');
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  /**
-   * GET /api/veeam/backup-by-org
-   * Get backup metrics by matching VCD VMs to Veeam protected VMs
-   */
-  app.get('/api/veeam/backup-by-org', async (req, res) => {
-    try {
-      const allClients = platformRegistry.getAllClients();
-      const veeamClients: VeeamOneClient[] = [];
-      const vcdClients: Array<{ id: string; client: any }> = [];
-      
-      for (const [id, client] of Array.from(allClients.entries())) {
-        if (client.getPlatformType() === 'veeam') {
-          veeamClients.push(client as VeeamOneClient);
-        } else if (client.getPlatformType() === 'vcd') {
-          vcdClients.push({ id, client });
-        }
-      }
-
-      if (veeamClients.length === 0) {
-        return res.json({ configured: false, organizations: {} });
-      }
-
-      // Get all protected VM names from Veeam
-      const protectedVmNames = new Set<string>();
-      for (const veeamClient of veeamClients) {
-        try {
-          const names = await veeamClient.getProtectedVMNames();
-          for (const name of Array.from(names)) {
-            protectedVmNames.add(name);
-          }
-        } catch (error: any) {
-          log(`Error fetching Veeam protected VMs: ${error.message}`, 'routes');
-        }
-      }
-
-      log(`Total unique protected VM names from Veeam: ${protectedVmNames.size}`, 'routes');
-
-      // For each VCD site, get VMs per org and match with Veeam
-      // Key by orgName (lowercase) to aggregate multiple VDCs per org
-      const orgMetrics: Record<string, { protectedVmCount: number; totalVmCount: number; backupSizeGB: number; vdcCount: number }> = {};
-      let totalVmsChecked = 0;
-      let totalVmsProtected = 0;
-
-      for (const { id: siteId, client } of vcdClients) {
-        try {
-          const tenants = await client.getTenantAllocations();
-          log(`Processing ${tenants.length} VDCs from site ${siteId} for backup matching`, 'routes');
-          
-          for (const tenant of tenants) {
-            // Use orgName (lowercase) as key to aggregate VDCs from same org
-            const orgKey = (tenant.orgName || tenant.id).toLowerCase();
-            
-            if (!orgMetrics[orgKey]) {
-              orgMetrics[orgKey] = { protectedVmCount: 0, totalVmCount: 0, backupSizeGB: 0, vdcCount: 0 };
-            }
-            orgMetrics[orgKey].vdcCount++;
-            
-            // Try to get actual VM names for this VDC to match with Veeam
-            try {
-              const vdcVms = await client.getVmsForVdc(tenant.id);
-              orgMetrics[orgKey].totalVmCount += vdcVms.length;
-              totalVmsChecked += vdcVms.length;
-              
-              for (const vm of vdcVms) {
-                const vmName = (vm.name || '').toLowerCase();
-                if (vmName && protectedVmNames.has(vmName)) {
-                  orgMetrics[orgKey].protectedVmCount++;
-                  totalVmsProtected++;
-                }
-              }
-            } catch (vmError: any) {
-              // Fallback to VM count from tenant allocation
-              const fallbackCount = tenant.vmCount || 0;
-              orgMetrics[orgKey].totalVmCount += fallbackCount;
-              log(`Could not fetch VMs for VDC ${tenant.id}, using count: ${fallbackCount}`, 'routes');
-            }
-          }
-        } catch (error: any) {
-          log(`Error getting VCD tenants for backup matching: ${error.message}`, 'routes');
-        }
-      }
-
-      // Log summary
-      const orgsWithBackups = Object.entries(orgMetrics).filter(([, m]) => m.protectedVmCount > 0);
-      log(`Backup matching: ${totalVmsChecked} VMs checked, ${totalVmsProtected} protected, ${orgsWithBackups.length}/${Object.keys(orgMetrics).length} orgs with backups`, 'routes');
-
-      res.json({
-        configured: true,
-        organizations: orgMetrics,
-      });
-    } catch (error: any) {
-      log(`Error fetching backup by org: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

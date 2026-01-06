@@ -448,17 +448,6 @@ export default function Dashboard() {
                           <ExternalLink className="h-3 w-3" /> Aria
                         </a>
                       )}
-                      {site.managementLinks.veeam && (
-                        <a 
-                          href={site.managementLinks.veeam.startsWith('http') ? site.managementLinks.veeam : `https://${site.managementLinks.veeam}`}
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs px-2 py-0.5 rounded border border-teal-500 text-teal-400 hover:bg-teal-500/20 flex items-center gap-1"
-                          data-testid={`link-veeam-${site.id}`}
-                        >
-                          <ExternalLink className="h-3 w-3" /> Veeam
-                        </a>
-                      )}
                     </>
                   )}
                 </h2>
