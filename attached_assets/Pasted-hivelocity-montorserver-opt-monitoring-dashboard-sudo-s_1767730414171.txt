@@ -1,0 +1,27 @@
+hivelocity@montorserver:/opt/monitoring-dashboard$ sudo systemctl status postgresql
+● postgresql.service - PostgreSQL RDBMS
+     Loaded: loaded (/usr/lib/systemd/system/postgresql.service; enabled; preset: enabled)
+     Active: active (exited) since Fri 2025-12-12 17:33:31 UTC; 3 weeks 4 days ago
+   Main PID: 46624 (code=exited, status=0/SUCCESS)
+        CPU: 1ms
+
+Dec 12 17:33:31 montorserver systemd[1]: Starting postgresql.service - PostgreSQL RDBMS...
+Dec 12 17:33:31 montorserver systemd[1]: Finished postgresql.service - PostgreSQL RDBMS.
+hivelocity@montorserver:/opt/monitoring-dashboard$ sudo -u postgres psql -c "\l"
+                                                                List of databases
+         Name         |   Owner    | Encoding | Locale Provider |   Collate   |    Ctype    | ICU Locale | ICU Rules |     Access privileges
+----------------------+------------+----------+-----------------+-------------+-------------+------------+-----------+---------------------------
+ monitoring_dashboard | monitoring | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |            |           | =Tc/monitoring           +
+                      |            |          |                 |             |             |            |           | monitoring=CTc/monitoring
+ postgres             | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |            |           |
+ template0            | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |            |           | =c/postgres              +
+                      |            |          |                 |             |             |            |           | postgres=CTc/postgres
+ template1            | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |            |           | =c/postgres              +
+                      |            |          |                 |             |             |            |           | postgres=CTc/postgres
+(4 rows)
+
+hivelocity@montorserver:/opt/monitoring-dashboard$ psql "postgresql://monitoring:Hivelocity!23@localhost:5432/monitoring_dashboard" -c "SELECT 1;"
+psql "postgresql://monitoring:Hivelocitysudo apt install -y ca-certificates@localhost:5432/monitoring_dashboard" -c "SELECT 1;"
+psql: error: connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "monitoring"
+connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "monitoring"
+hivelocity@montorserver:/opt/monitoring-dashboard$
