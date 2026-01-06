@@ -1,0 +1,72 @@
+hivelocity@montorserver:/opt/monitoring-dashboard$ cd /opt/monitoring-dashboard
+
+# Install ALL dependencies including dev deps (tsx is a dev dependency)
+sudo -u www-data npm install
+
+# Now build
+sudo -u www-data npm run build
+
+# Restart
+sudo systemctl restart monitoring-dashboard
+sleep 3
+sudo journalctl -u monitoring-dashboard -n 20 --no-pager
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+
+added 108 packages, and audited 446 packages in 2s
+
+42 packages are looking for funding
+  run `npm fund` for details
+
+9 vulnerabilities (2 low, 4 moderate, 3 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.1.12 building for production...
+✓ 3193 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                     1.52 kB │ gzip:   0.60 kB
+../dist/public/assets/index-Dwz3gsul.css    101.63 kB │ gzip:  16.74 kB
+../dist/public/assets/index-wsKvvacF.js   1,148.25 kB │ gzip: 329.48 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.24s
+building server...
+
+  dist/index.cjs  1.2mb ⚠️
+
+⚡ Done in 98ms
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]: Error: Cannot find module '/opt/monitoring-dashboard/dist/index.cjs'
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:     at node:internal/main/run_main_module:28:49 {
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:   code: 'MODULE_NOT_FOUND',
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]:   requireStack: []
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]: }
+Jan 06 22:59:37 montorserver monitoring-dashboard[920016]: Node.js v20.19.6
+Jan 06 22:59:37 montorserver systemd[1]: monitoring-dashboard.service: Main process exited, code=exited, status=1/FAILURE
+Jan 06 22:59:37 montorserver systemd[1]: monitoring-dashboard.service: Failed with result 'exit-code'.
+Jan 06 22:59:41 montorserver systemd[1]: Stopped monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:59:41 montorserver systemd[1]: Started monitoring-dashboard.service - Infrastructure Monitoring Dashboard.
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: [auth] Created default admin user. Username: admin, Password: admin (change immediately!)
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [platform-registry] Loading 2 sites from database...
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [platform-registry] Added VCD client for site: ATL3
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [platform-registry] Added VCD client for site: ORD4
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [routes] Loaded 2 sites from database
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [express] serving on port 5000
+Jan 06 22:59:42 montorserver monitoring-dashboard[920030]: 10:59:42 PM [polling] Starting polling service (interval: 240 minutes)
+hivelocity@montorserver:/opt/monitoring-dashboard$
