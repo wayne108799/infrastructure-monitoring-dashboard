@@ -1296,15 +1296,15 @@ export async function registerRoutes(
         status: string;
         vmCount: number;
         runningVmCount: number;
-        cpuAllocatedMHz: number;
-        cpuUsedMHz: number;
-        ramAllocatedMB: number;
-        ramUsedMB: number;
-        storageTotalMB: number;
-        storageUsedMB: number;
+        vcpuAllocated: number;
+        vcpuUsed: number;
+        ramAllocatedGB: number;
+        ramUsedGB: number;
+        storageTotalGB: number;
+        storageUsedGB: number;
         storageTier: string;
-        tierLimitMB: number;
-        tierUsedMB: number;
+        tierLimitGB: number;
+        tierUsedGB: number;
         allocatedIps: number;
         commitVcpu: string;
         commitGhz: string;
@@ -1315,6 +1315,8 @@ export async function registerRoutes(
         commitOtherGB: string;
         commitIps: string;
         commitNotes: string;
+        vcpuOverage: number;
+        ramOverageGB: number;
       }
 
       const rows: ExportRow[] = [];
@@ -1332,6 +1334,22 @@ export async function registerRoutes(
             const plainSiteId = site.info.id;
             const commitLevel = commitLevelMap.get(`${plainSiteId}:${tenant.id}`);
             
+            // Convert MHz to vCPU (using 2800 MHz per vCPU)
+            const vcpuAllocated = Math.round((tenant.cpu.allocated / 2800) * 100) / 100;
+            const vcpuUsed = Math.round((tenant.cpu.used / 2800) * 100) / 100;
+            
+            // Convert MB to GB
+            const ramAllocatedGB = Math.round((tenant.memory.allocated / 1024) * 100) / 100;
+            const ramUsedGB = Math.round((tenant.memory.used / 1024) * 100) / 100;
+            const storageTotalGB = Math.round((tenant.storage.limit / 1024) * 100) / 100;
+            const storageUsedGB = Math.round((tenant.storage.used / 1024) * 100) / 100;
+            
+            // Calculate overages (used - commit, if positive)
+            const commitVcpuNum = commitLevel?.vcpuCount ? parseFloat(commitLevel.vcpuCount) : 0;
+            const commitRamGBNum = commitLevel?.ramGB ? parseFloat(commitLevel.ramGB) : 0;
+            const vcpuOverage = commitVcpuNum > 0 ? Math.max(0, Math.round((vcpuUsed - commitVcpuNum) * 100) / 100) : 0;
+            const ramOverageGB = commitRamGBNum > 0 ? Math.max(0, Math.round((ramUsedGB - commitRamGBNum) * 100) / 100) : 0;
+            
             const baseRow = {
               timestamp,
               siteId: plainSiteId,
@@ -1345,12 +1363,12 @@ export async function registerRoutes(
               status: tenant.status,
               vmCount: tenant.vmCount,
               runningVmCount: tenant.runningVmCount,
-              cpuAllocatedMHz: tenant.cpu.allocated,
-              cpuUsedMHz: tenant.cpu.used,
-              ramAllocatedMB: tenant.memory.allocated,
-              ramUsedMB: tenant.memory.used,
-              storageTotalMB: tenant.storage.limit,
-              storageUsedMB: tenant.storage.used,
+              vcpuAllocated,
+              vcpuUsed,
+              ramAllocatedGB,
+              ramUsedGB,
+              storageTotalGB,
+              storageUsedGB,
               allocatedIps: tenant.allocatedIps || 0,
               commitVcpu: commitLevel?.vcpuCount || '',
               commitGhz: commitLevel?.vcpuSpeedGhz || '',
@@ -1361,6 +1379,8 @@ export async function registerRoutes(
               commitOtherGB: commitLevel?.storageOtherGB || '',
               commitIps: commitLevel?.allocatedIps || '',
               commitNotes: commitLevel?.notes || '',
+              vcpuOverage,
+              ramOverageGB,
             };
             
             // If tenant has storage tiers, create a row for each tier
@@ -1369,8 +1389,8 @@ export async function registerRoutes(
                 rows.push({
                   ...baseRow,
                   storageTier: tier.name,
-                  tierLimitMB: tier.limit,
-                  tierUsedMB: tier.used,
+                  tierLimitGB: Math.round((tier.limit / 1024) * 100) / 100,
+                  tierUsedGB: Math.round((tier.used / 1024) * 100) / 100,
                 });
               }
             } else {
@@ -1378,8 +1398,8 @@ export async function registerRoutes(
               rows.push({
                 ...baseRow,
                 storageTier: 'Default',
-                tierLimitMB: tenant.storage.limit,
-                tierUsedMB: tenant.storage.used,
+                tierLimitGB: storageTotalGB,
+                tierUsedGB: storageUsedGB,
               });
             }
           }
@@ -1403,15 +1423,15 @@ export async function registerRoutes(
         'Status',
         'VM Count',
         'Running VMs',
-        'CPU Allocated (MHz)',
-        'CPU Used (MHz)',
-        'RAM Allocated (MB)',
-        'RAM Used (MB)',
-        'Storage Total (MB)',
-        'Storage Used (MB)',
+        'vCPU Allocated',
+        'vCPU Used',
+        'RAM Allocated (GB)',
+        'RAM Used (GB)',
+        'Storage Total (GB)',
+        'Storage Used (GB)',
         'Storage Tier',
-        'Tier Limit (MB)',
-        'Tier Used (MB)',
+        'Tier Limit (GB)',
+        'Tier Used (GB)',
         'Allocated IPs',
         'Commit vCPU',
         'Commit GHz',
@@ -1422,6 +1442,8 @@ export async function registerRoutes(
         'Commit Other (GB)',
         'Commit IPs',
         'Commit Notes',
+        'vCPU Overage',
+        'RAM Overage (GB)',
       ];
 
       const csvRows = [headers.join(',')];
@@ -1436,15 +1458,15 @@ export async function registerRoutes(
           row.status,
           row.vmCount,
           row.runningVmCount,
-          row.cpuAllocatedMHz,
-          row.cpuUsedMHz,
-          row.ramAllocatedMB,
-          row.ramUsedMB,
-          row.storageTotalMB,
-          row.storageUsedMB,
+          row.vcpuAllocated,
+          row.vcpuUsed,
+          row.ramAllocatedGB,
+          row.ramUsedGB,
+          row.storageTotalGB,
+          row.storageUsedGB,
           `"${row.storageTier}"`,
-          row.tierLimitMB,
-          row.tierUsedMB,
+          row.tierLimitGB,
+          row.tierUsedGB,
           row.allocatedIps,
           row.commitVcpu,
           row.commitGhz,
@@ -1455,6 +1477,8 @@ export async function registerRoutes(
           row.commitOtherGB,
           row.commitIps,
           `"${row.commitNotes}"`,
+          row.vcpuOverage,
+          row.ramOverageGB,
         ].join(','));
       }
 
