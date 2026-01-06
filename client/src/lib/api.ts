@@ -367,6 +367,8 @@ export interface PlatformSiteConfig {
   realm?: string | null;
   isEnabled?: boolean | null;
   vcenterUrl?: string | null;
+  vcenterUsername?: string | null;
+  vcenterPassword?: string | null;
   nsxUrl?: string | null;
   ariaUrl?: string | null;
   vspcUrl?: string | null;
@@ -390,6 +392,8 @@ export interface CreatePlatformSiteConfig {
   realm?: string;
   isEnabled?: boolean;
   vcenterUrl?: string;
+  vcenterUsername?: string;
+  vcenterPassword?: string;
   nsxUrl?: string;
   ariaUrl?: string;
   vspcUrl?: string;

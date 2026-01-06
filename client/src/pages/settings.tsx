@@ -70,6 +70,8 @@ interface SiteFormData {
   realm: string;
   isEnabled: boolean;
   vcenterUrl: string;
+  vcenterUsername: string;
+  vcenterPassword: string;
   nsxUrl: string;
   ariaUrl: string;
   vspcUrl: string;
@@ -91,6 +93,8 @@ const initialFormData: SiteFormData = {
   realm: 'pam',
   isEnabled: true,
   vcenterUrl: '',
+  vcenterUsername: '',
+  vcenterPassword: '',
   nsxUrl: '',
   ariaUrl: '',
   vspcUrl: '',
@@ -238,6 +242,10 @@ export default function Settings() {
       config.org = formData.org;
       // Include management links for VCD
       if (formData.vcenterUrl) config.vcenterUrl = formData.vcenterUrl;
+      if (formData.vcenterUsername) config.vcenterUsername = formData.vcenterUsername;
+      if (formData.vcenterPassword && !isPasswordMasked(formData.vcenterPassword)) {
+        config.vcenterPassword = formData.vcenterPassword;
+      }
       if (formData.nsxUrl) config.nsxUrl = formData.nsxUrl;
       if (formData.ariaUrl) config.ariaUrl = formData.ariaUrl;
       // Include VSPC configuration for VCD
@@ -282,6 +290,8 @@ export default function Settings() {
       realm: site.realm || 'pam',
       isEnabled: site.isEnabled !== false,
       vcenterUrl: site.vcenterUrl || '',
+      vcenterUsername: site.vcenterUsername || '',
+      vcenterPassword: site.vcenterPassword || '',
       nsxUrl: site.nsxUrl || '',
       ariaUrl: site.ariaUrl || '',
       vspcUrl: site.vspcUrl || '',
@@ -618,6 +628,31 @@ export default function Settings() {
                 value={formData.ariaUrl}
                 onChange={(e) => setFormData({ ...formData, ariaUrl: e.target.value })}
                 placeholder="https://aria.example.com"
+              />
+            </div>
+          </div>
+          <p className="text-sm font-medium text-muted-foreground mt-4">vCenter Monitoring Credentials (optional)</p>
+          <p className="text-xs text-muted-foreground">Used for health monitoring and alarm detection. Leave blank to skip vCenter checks.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vcenterUsername">vCenter Username</Label>
+              <Input
+                id="vcenterUsername"
+                data-testid="input-vcenter-username"
+                value={formData.vcenterUsername}
+                onChange={(e) => setFormData({ ...formData, vcenterUsername: e.target.value })}
+                placeholder="administrator@vsphere.local"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vcenterPassword">vCenter Password</Label>
+              <Input
+                id="vcenterPassword"
+                data-testid="input-vcenter-password"
+                type="password"
+                value={formData.vcenterPassword}
+                onChange={(e) => setFormData({ ...formData, vcenterPassword: e.target.value })}
+                placeholder="********"
               />
             </div>
           </div>
