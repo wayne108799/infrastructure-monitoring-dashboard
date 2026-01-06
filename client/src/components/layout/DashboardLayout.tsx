@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft, List, FileSpreadsheet, PlusCircle, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Server, Activity, Settings, Cloud, PanelLeft, List, FileSpreadsheet, PlusCircle, TrendingUp, LogOut, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/authContext';
 import {
   SidebarProvider,
   Sidebar,
@@ -14,9 +15,71 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+}
+
+function UserDropdown({ isCollapsed }: { isCollapsed: boolean }) {
+  const { user, logout, groups } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = async () => {
+    await logout();
+    setLocation('/login');
+  };
+
+  const initials = user?.displayName
+    ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : user?.username?.slice(0, 2).toUpperCase() || 'U';
+
+  const displayName = user?.displayName || user?.username || 'User';
+  const groupNames = groups.map(g => g.name).join(', ') || 'No groups';
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex items-center gap-3 transition-all duration-200 w-full rounded-md p-1 hover:bg-sidebar-accent",
+            isCollapsed && "justify-center"
+          )}
+          data-testid="button-user-menu"
+        >
+          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-mono text-primary shrink-0">
+            {initials}
+          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col min-w-0 text-left">
+              <span className="text-xs font-medium text-foreground truncate">{displayName}</span>
+              <span className="text-[10px] text-muted-foreground truncate">{groupNames}</span>
+            </div>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-56">
+        <DropdownMenuLabel>
+          <div className="flex flex-col">
+            <span>{displayName}</span>
+            {user?.email && <span className="text-xs font-normal text-muted-foreground">{user.email}</span>}
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLogout} className="text-destructive" data-testid="button-logout">
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function AppSidebar() {
@@ -67,20 +130,7 @@ function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className={cn(
-          "flex items-center gap-3 transition-all duration-200",
-          isCollapsed && "justify-center"
-        )}>
-          <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-mono text-sidebar-foreground shrink-0">
-            AD
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-medium text-foreground truncate">Admin User</span>
-              <span className="text-[10px] text-muted-foreground truncate">vcd-admin@corp.local</span>
-            </div>
-          )}
-        </div>
+        <UserDropdown isCollapsed={isCollapsed} />
       </SidebarFooter>
     </Sidebar>
   );

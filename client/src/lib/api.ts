@@ -2,6 +2,44 @@
 
 export type PlatformType = 'vcd' | 'cloudstack' | 'proxmox';
 
+// Auth types
+export interface AuthUser {
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+export interface AuthGroup {
+  id: string;
+  name: string;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  permissions: string[];
+  groups: AuthGroup[];
+}
+
+export interface UserWithGroups {
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string | null;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  groups: AuthGroup[];
+}
+
+export interface GroupWithPermissions {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+  createdAt: string;
+}
+
 export interface ManagementLinks {
   vcd: string | null;
   vcenter: string | null;
@@ -800,4 +838,165 @@ export async function fetchAllStorageConfigs(): Promise<Record<string, SiteStora
   }
   
   return result;
+}
+
+// Auth API functions
+export async function login(username: string, password: string): Promise<AuthSession> {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Login failed');
+  }
+  return response.json();
+}
+
+export async function logout(): Promise<void> {
+  const response = await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error('Logout failed');
+  }
+}
+
+export async function getCurrentUser(): Promise<AuthSession | null> {
+  const response = await fetch('/api/auth/me', {
+    credentials: 'include',
+  });
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error('Failed to get current user');
+  }
+  return response.json();
+}
+
+export async function fetchAllPermissions(): Promise<string[]> {
+  const response = await fetch('/api/auth/permissions');
+  if (!response.ok) {
+    throw new Error('Failed to fetch permissions');
+  }
+  return response.json();
+}
+
+export async function fetchUsers(): Promise<UserWithGroups[]> {
+  const response = await fetch('/api/users', { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch users');
+  }
+  return response.json();
+}
+
+export async function createUser(data: {
+  username: string;
+  password: string;
+  email?: string | null;
+  displayName?: string | null;
+  groupIds?: string[];
+}): Promise<UserWithGroups> {
+  const response = await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to create user');
+  }
+  return response.json();
+}
+
+export async function updateUser(id: string, data: {
+  username?: string;
+  password?: string;
+  email?: string | null;
+  displayName?: string | null;
+  isActive?: boolean;
+  groupIds?: string[];
+}): Promise<UserWithGroups> {
+  const response = await fetch(`/api/users/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to update user');
+  }
+  return response.json();
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  const response = await fetch(`/api/users/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to delete user');
+  }
+}
+
+export async function fetchGroups(): Promise<GroupWithPermissions[]> {
+  const response = await fetch('/api/groups', { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch groups');
+  }
+  return response.json();
+}
+
+export async function createGroup(data: {
+  name: string;
+  description?: string | null;
+  permissions?: string[];
+}): Promise<GroupWithPermissions> {
+  const response = await fetch('/api/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to create group');
+  }
+  return response.json();
+}
+
+export async function updateGroup(id: string, data: {
+  name?: string;
+  description?: string | null;
+  permissions?: string[];
+}): Promise<GroupWithPermissions> {
+  const response = await fetch(`/api/groups/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to update group');
+  }
+  return response.json();
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  const response = await fetch(`/api/groups/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to delete group');
+  }
 }

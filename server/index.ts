@@ -1,8 +1,17 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 import { registerRoutes } from "./routes";
+import { registerAuthRoutes } from "./authRoutes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { startPollingService } from "./lib/pollingService";
+
+const PgSession = pgSession(session);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,6 +31,22 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+app.use(session({
+  store: new PgSession({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET || 'development-secret-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000,
+  },
+}));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -61,6 +86,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await registerAuthRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

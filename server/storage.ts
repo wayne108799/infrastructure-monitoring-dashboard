@@ -10,20 +10,42 @@ import {
   type GlobalConfig,
   type SiteStorageConfig,
   type InsertSiteStorageConfig,
+  type Group,
+  type InsertGroup,
+  type UserGroup,
+  type InsertUserGroup,
   users,
   platformSites,
   tenantCommitLevels,
   globalConfig,
-  siteStorageConfig
+  siteStorageConfig,
+  groups,
+  userGroups
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+  updateUserLastLogin(id: string): Promise<void>;
+  
+  getGroup(id: string): Promise<Group | undefined>;
+  getGroupByName(name: string): Promise<Group | undefined>;
+  getAllGroups(): Promise<Group[]>;
+  createGroup(group: InsertGroup): Promise<Group>;
+  updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group | undefined>;
+  deleteGroup(id: string): Promise<boolean>;
+  
+  getUserGroups(userId: string): Promise<Group[]>;
+  addUserToGroup(userId: string, groupId: string): Promise<UserGroup>;
+  removeUserFromGroup(userId: string, groupId: string): Promise<boolean>;
+  getUserPermissions(userId: string): Promise<string[]>;
   
   getAllPlatformSites(): Promise<PlatformSite[]>;
   getPlatformSite(id: string): Promise<PlatformSite | undefined>;
@@ -60,6 +82,105 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    await db.delete(users).where(eq(users.id, id));
+    return true;
+  }
+
+  async updateUserLastLogin(id: string): Promise<void> {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id));
+  }
+
+  async getGroup(id: string): Promise<Group | undefined> {
+    const [group] = await db.select().from(groups).where(eq(groups.id, id));
+    return group;
+  }
+
+  async getGroupByName(name: string): Promise<Group | undefined> {
+    const [group] = await db.select().from(groups).where(eq(groups.name, name));
+    return group;
+  }
+
+  async getAllGroups(): Promise<Group[]> {
+    return db.select().from(groups);
+  }
+
+  async createGroup(group: InsertGroup): Promise<Group> {
+    const [created] = await db.insert(groups).values({
+      name: group.name,
+      description: group.description,
+      permissions: group.permissions ? JSON.stringify(group.permissions) : '[]',
+    } as any).returning();
+    return created;
+  }
+
+  async updateGroup(id: string, updates: Partial<InsertGroup>): Promise<Group | undefined> {
+    const updateData: any = { updatedAt: new Date() };
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.permissions !== undefined) updateData.permissions = JSON.stringify(updates.permissions);
+    
+    const [updated] = await db
+      .update(groups)
+      .set(updateData)
+      .where(eq(groups.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteGroup(id: string): Promise<boolean> {
+    await db.delete(groups).where(eq(groups.id, id));
+    return true;
+  }
+
+  async getUserGroups(userId: string): Promise<Group[]> {
+    const memberships = await db.select().from(userGroups).where(eq(userGroups.userId, userId));
+    if (memberships.length === 0) return [];
+    const groupIds = memberships.map(m => m.groupId);
+    return db.select().from(groups).where(inArray(groups.id, groupIds));
+  }
+
+  async addUserToGroup(userId: string, groupId: string): Promise<UserGroup> {
+    const [existing] = await db.select().from(userGroups).where(
+      and(eq(userGroups.userId, userId), eq(userGroups.groupId, groupId))
+    );
+    if (existing) return existing;
+    const [created] = await db.insert(userGroups).values({ userId, groupId }).returning();
+    return created;
+  }
+
+  async removeUserFromGroup(userId: string, groupId: string): Promise<boolean> {
+    await db.delete(userGroups).where(
+      and(eq(userGroups.userId, userId), eq(userGroups.groupId, groupId))
+    );
+    return true;
+  }
+
+  async getUserPermissions(userId: string): Promise<string[]> {
+    const userGroupsList = await this.getUserGroups(userId);
+    const allPermissions = new Set<string>();
+    for (const group of userGroupsList) {
+      const perms = group.permissions as string[] | null;
+      if (perms) {
+        perms.forEach(p => allPermissions.add(p));
+      }
+    }
+    return Array.from(allPermissions);
   }
 
   async getAllPlatformSites(): Promise<PlatformSite[]> {
