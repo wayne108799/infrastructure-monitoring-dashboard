@@ -291,11 +291,11 @@ export function getPlatformDisplayName(type: PlatformType): string {
 export function getPlatformShortName(type: PlatformType): string {
   switch (type) {
     case 'vcd':
-      return 'VCD';
+      return 'Enterprise Cloud';
     case 'cloudstack':
-      return 'CloudStack';
+      return 'VPS/VDS';
     case 'proxmox':
-      return 'Proxmox';
+      return 'Other';
     case 'veeam':
       return 'Veeam';
     default:
