@@ -245,7 +245,7 @@ export async function getHighWaterMarkForMonth(year: number, month: number): Pro
     }
     
     // Update max per storage tier (normalize to lowercase for consistent aggregation)
-    const tiers = allocationData.storage?.tiers || [];
+    const tiers = allocationData.storageTiers || [];
     for (const tier of tiers) {
       const tierName = (tier.name || 'Unknown').toLowerCase();
       if (!hwm.storageTiers[tierName]) {
