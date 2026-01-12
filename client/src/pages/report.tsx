@@ -62,7 +62,13 @@ export default function Report() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      await exportTenantsCSV();
+      await exportTenantsCSV({
+        platform: platformFilter,
+        siteId: siteFilter,
+        showDisabled: showDisabled,
+        year: selectedYear,
+        month: selectedMonth,
+      });
       toast.success('Export downloaded successfully');
     } catch (error: any) {
       toast.error(`Export failed: ${error.message}`);

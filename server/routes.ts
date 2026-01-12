@@ -1009,11 +1009,22 @@ export async function registerRoutes(
   /**
    * GET /api/export/tenants
    * Export all tenant allocations as CSV
+   * Supports filters: platform, siteId, showDisabled
    */
   app.get('/api/export/tenants', async (req, res) => {
     try {
-      const { format = 'csv' } = req.query;
-      const sites = platformRegistry.getAllSites();
+      const { format = 'csv', platform, siteId, showDisabled } = req.query;
+      let sites = platformRegistry.getAllSites();
+      
+      // Apply platform filter
+      if (platform && typeof platform === 'string') {
+        sites = sites.filter(s => s.platformType.toLowerCase() === platform.toLowerCase());
+      }
+      
+      // Apply siteId filter
+      if (siteId && typeof siteId === 'string') {
+        sites = sites.filter(s => s.id === siteId || s.info.id === siteId);
+      }
       
       // Get all commit levels for enrichment
       const allCommitLevels = await storage.getAllCommitLevels();
@@ -1076,6 +1087,11 @@ export async function registerRoutes(
             // Look up commit level for this tenant using the plain siteId (not composite)
             const plainSiteId = site.info.id;
             const commitLevel = commitLevelMap.get(`${plainSiteId}:${tenant.id}`);
+            
+            // Skip disabled tenants unless showDisabled is true
+            if (commitLevel?.isReportingDisabled && showDisabled !== 'true') {
+              continue;
+            }
             
             // Convert MHz to vCPU (using 2800 MHz per vCPU)
             const vcpuAllocated = Math.round((tenant.cpu.allocated / 2800) * 100) / 100;

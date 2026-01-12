@@ -471,20 +471,46 @@ export async function testSiteConfigConnection(id: string): Promise<{ success: b
  * Export all tenant allocations as CSV
  * Triggers file download
  */
-export async function exportTenantsCSV(): Promise<void> {
-  const response = await fetch('/api/export/tenants');
+export interface ExportFilters {
+  platform?: string;
+  siteId?: string;
+  showDisabled?: boolean;
+  year?: number;
+  month?: number;
+}
+
+export async function exportTenantsCSV(filters?: ExportFilters): Promise<void> {
+  const params = new URLSearchParams();
+  if (filters?.platform && filters.platform !== 'all') {
+    params.set('platform', filters.platform);
+  }
+  if (filters?.siteId && filters.siteId !== 'all') {
+    params.set('siteId', filters.siteId);
+  }
+  if (filters?.showDisabled !== undefined) {
+    params.set('showDisabled', filters.showDisabled.toString());
+  }
+  if (filters?.year) {
+    params.set('year', filters.year.toString());
+  }
+  if (filters?.month) {
+    params.set('month', filters.month.toString());
+  }
+  
+  const url = '/api/export/tenants' + (params.toString() ? '?' + params.toString() : '');
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to export tenants');
   }
   
   const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
+  const downloadUrl = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
+  a.href = downloadUrl;
   a.download = `tenant-export-${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(a);
   a.click();
-  window.URL.revokeObjectURL(url);
+  window.URL.revokeObjectURL(downloadUrl);
   document.body.removeChild(a);
 }
 
