@@ -104,6 +104,15 @@ On the Details page, each tenant card has a "Set Commit" button to define minimu
 
 These values are stored in the database and included in CSV exports for capacity planning and reporting.
 
+## Tenant Reporting Disable
+Tenants can be disabled from reporting for testing or compliance purposes:
+- On the Details page, each tenant card has an eye icon button to toggle reporting status
+- Disabled tenants show an amber "Disabled" badge
+- On the Report page, disabled tenants are hidden by default
+- Use the "Show All" toggle button on the Report page to include disabled tenants
+- Disabled status is stored in the `tenantCommitLevels` table (`isReportingDisabled`, `disabledReason` fields)
+- API endpoint: `POST /api/commit-levels/:siteId/:tenantId/toggle-reporting`
+
 ## High Water Mark Billing
 The Report page displays **high water mark** usage for billing purposes:
 - Shows maximum resource usage recorded during the selected billing month

@@ -133,6 +133,8 @@ export const tenantCommitLevels = pgTable("tenant_commit_levels", {
   storageOtherGB: text("storage_other_gb"), // for non-VCD platforms
   allocatedIps: text("allocated_ips"),     // e.g., "5"
   notes: text("notes"),
+  isReportingDisabled: boolean("is_reporting_disabled").default(false), // Exclude from reports when true
+  disabledReason: text("disabled_reason"), // Reason for disabling (e.g., "Testing", "Non-compliant")
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

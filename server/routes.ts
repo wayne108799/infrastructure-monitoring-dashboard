@@ -340,6 +340,9 @@ export async function registerRoutes(
           commitOtherGB: commitLevel?.storageOtherGB || '',
           commitIps: commitLevel?.allocatedIps || '',
           notes: commitLevel?.notes || '',
+          // Reporting disabled status
+          isReportingDisabled: commitLevel?.isReportingDisabled || false,
+          disabledReason: commitLevel?.disabledReason || '',
         };
       });
       
@@ -962,6 +965,43 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       log(`Error deleting commit level: ${error.message}`, 'routes');
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/commit-levels/:siteId/:tenantId/toggle-reporting
+   * Toggle reporting enabled/disabled for a tenant
+   */
+  app.post('/api/commit-levels/:siteId/:tenantId/toggle-reporting', async (req, res) => {
+    try {
+      const { siteId, tenantId } = req.params;
+      const { isDisabled, reason, tenantName } = req.body;
+      
+      // Get existing commit level or create minimal entry
+      let existing = await storage.getCommitLevel(siteId, tenantId);
+      
+      if (existing) {
+        // Update existing entry
+        const updated = await storage.upsertCommitLevel({
+          ...existing,
+          isReportingDisabled: isDisabled,
+          disabledReason: isDisabled ? reason : null,
+        });
+        res.json(updated);
+      } else {
+        // Create new minimal entry just for tracking disabled status
+        const created = await storage.upsertCommitLevel({
+          siteId,
+          tenantId,
+          tenantName: tenantName || tenantId,
+          isReportingDisabled: isDisabled,
+          disabledReason: isDisabled ? reason : null,
+        });
+        res.json(created);
+      }
+    } catch (error: any) {
+      log(`Error toggling tenant reporting: ${error.message}`, 'routes');
       res.status(500).json({ error: error.message });
     }
   });

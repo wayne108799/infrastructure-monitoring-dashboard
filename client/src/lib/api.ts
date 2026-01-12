@@ -514,7 +514,9 @@ export interface HighWaterMarkTenant {
   commitVvolGB: string;
   commitOtherGB: string;
   commitIps: string;
-  notes: string;
+  notes?: string;
+  isReportingDisabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface HighWaterMarkResponse {
@@ -636,6 +638,8 @@ export interface TenantCommitLevel {
   storageOtherGB?: string;
   allocatedIps?: string;
   notes?: string;
+  isReportingDisabled?: boolean;
+  disabledReason?: string;
   updatedAt?: string;
 }
 
@@ -654,6 +658,8 @@ export interface InsertTenantCommitLevel {
   storageOtherGB?: string;
   allocatedIps?: string;
   notes?: string;
+  isReportingDisabled?: boolean;
+  disabledReason?: string;
 }
 
 /**
@@ -707,6 +713,27 @@ export async function deleteCommitLevel(siteId: string, tenantId: string): Promi
   if (!response.ok) {
     throw new Error('Failed to delete commit level');
   }
+}
+
+/**
+ * Toggle tenant reporting enabled/disabled status
+ */
+export async function toggleTenantReporting(
+  siteId: string, 
+  tenantId: string, 
+  isDisabled: boolean, 
+  reason?: string,
+  tenantName?: string
+): Promise<TenantCommitLevel> {
+  const response = await fetch(`/api/commit-levels/${siteId}/${tenantId}/toggle-reporting`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isDisabled, reason, tenantName }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to toggle tenant reporting');
+  }
+  return response.json();
 }
 
 // Backup metrics by organization (VSPC)

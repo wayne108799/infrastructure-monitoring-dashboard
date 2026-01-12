@@ -19,6 +19,7 @@ import {
   fetchSiteSummary, 
   fetchCommitLevels,
   saveCommitLevel,
+  toggleTenantReporting,
   fetchVspcBackupByOrg,
   getPlatformShortName, 
   getPlatformColor,
@@ -129,6 +130,28 @@ export default function Details() {
       toast.error(`Failed to save: ${error.message}`);
     },
   });
+
+  const toggleReportingMutation = useMutation({
+    mutationFn: async ({ siteId, tenantId, isDisabled, tenantName }: { siteId: string; tenantId: string; isDisabled: boolean; tenantName: string }) => {
+      return toggleTenantReporting(siteId, tenantId, isDisabled, isDisabled ? 'Testing/Non-compliant' : undefined, tenantName);
+    },
+    onSuccess: (data, variables) => {
+      toast.success(variables.isDisabled ? 'Tenant disabled from reports' : 'Tenant enabled in reports');
+      queryClient.invalidateQueries({ queryKey: ['commitLevels'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to toggle reporting: ${error.message}`);
+    },
+  });
+
+  const handleToggleReporting = (tenant: OrgVdc, disabled: boolean) => {
+    toggleReportingMutation.mutate({
+      siteId: selectedSiteId,
+      tenantId: tenant.id,
+      isDisabled: disabled,
+      tenantName: tenant.name,
+    });
+  };
 
   const openCommitDialog = (tenant: OrgVdc) => {
     const existing = commitLevelMap.get(tenant.id);
@@ -510,7 +533,10 @@ export default function Details() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {vdcs.map((vdc, idx) => {
-                  const hasCommit = commitLevelMap.has(vdc.id);
+                  const commitLevel = commitLevelMap.get(vdc.id);
+                  const hasCommit = !!commitLevel;
+                  const isReportingDisabled = commitLevel?.isReportingDisabled || false;
+                  const disabledReason = commitLevel?.disabledReason || undefined;
                   return (
                     <motion.div
                       key={vdc.id}
@@ -524,6 +550,9 @@ export default function Details() {
                         backupMetrics={getBackupMetricsForOrg(vdc.org?.id, vdc.orgName)}
                         onSetCommit={() => openCommitDialog(vdc)}
                         hasCommit={hasCommit}
+                        isReportingDisabled={isReportingDisabled}
+                        disabledReason={disabledReason}
+                        onToggleReporting={(disabled) => handleToggleReporting(vdc, disabled)}
                       />
                     </motion.div>
                   );

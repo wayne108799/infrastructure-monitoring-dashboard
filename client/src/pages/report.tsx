@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle, Database, HardDrive, Calendar, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle, Database, HardDrive, Calendar, ArrowUpDown, ArrowUp, ArrowDown, EyeOff, Eye } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { 
@@ -32,6 +32,7 @@ type SortColumn = string | null;
 export default function Report() {
   const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [siteFilter, setSiteFilter] = useState<string>('all');
+  const [showDisabled, setShowDisabled] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -105,6 +106,7 @@ export default function Report() {
     let filtered = highWaterMarkData.data.filter(row => {
       if (platformFilter !== 'all' && row.platform.toLowerCase() !== platformFilter) return false;
       if (siteFilter !== 'all' && row.siteId !== siteFilter) return false;
+      if (!showDisabled && row.isReportingDisabled) return false;
       return true;
     });
 
@@ -130,7 +132,7 @@ export default function Report() {
     }
     
     return filtered;
-  }, [highWaterMarkData, platformFilter, siteFilter, sortColumn, sortDirection]);
+  }, [highWaterMarkData, platformFilter, siteFilter, showDisabled, sortColumn, sortDirection]);
 
   const platforms = sites ? Array.from(new Set(sites.map(s => s.platformType))) : [];
   const uniqueSites = useMemo(() => {
@@ -180,7 +182,15 @@ export default function Report() {
     <>
       <TableCell className="font-medium">
         <div className="flex flex-col">
-          <span>{row.businessName || row.tenant}</span>
+          <div className="flex items-center gap-2">
+            <span>{row.businessName || row.tenant}</span>
+            {row.isReportingDisabled && (
+              <Badge variant="outline" className="border-amber-500 text-amber-500 bg-amber-500/10 text-[10px] px-1">
+                <EyeOff className="h-3 w-3 mr-1" />
+                Disabled
+              </Badge>
+            )}
+          </div>
           <span className="text-xs text-muted-foreground font-mono">{row.businessId || row.tenantId}</span>
         </div>
       </TableCell>
@@ -259,6 +269,16 @@ export default function Report() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant={showDisabled ? "default" : "outline"}
+            onClick={() => setShowDisabled(!showDisabled)}
+            data-testid="button-toggle-disabled"
+            className="flex items-center gap-2"
+            title={showDisabled ? 'Hide disabled tenants' : 'Show disabled tenants'}
+          >
+            {showDisabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {showDisabled ? 'Showing All' : 'Hide Disabled'}
+          </Button>
           <Button 
             onClick={handleExport} 
             disabled={isExporting}
