@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle, Database, HardDrive, Calendar } from 'lucide-react';
+import { Download, FileSpreadsheet, AlertCircle, Loader2, TrendingUp, Target, AlertTriangle, Database, HardDrive, Calendar, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { 
@@ -26,9 +26,15 @@ import { Progress } from '@/components/ui/progress';
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
   'July', 'August', 'September', 'October', 'November', 'December'];
 
+type SortDirection = 'asc' | 'desc' | null;
+type SortColumn = string | null;
+
 export default function Report() {
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [siteFilter, setSiteFilter] = useState<string>('all');
   const [isExporting, setIsExporting] = useState(false);
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
@@ -70,15 +76,73 @@ export default function Report() {
     setSelectedMonth(month);
   };
 
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: string) => {
+    if (sortColumn !== column) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    if (sortDirection === 'asc') return <ArrowUp className="ml-1 h-3 w-3" />;
+    if (sortDirection === 'desc') return <ArrowDown className="ml-1 h-3 w-3" />;
+    return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+  };
+
   const tableData = useMemo(() => {
     if (!highWaterMarkData?.data) return [];
-    return highWaterMarkData.data.filter(row => {
-      if (platformFilter === 'all') return true;
-      return row.platform.toLowerCase() === platformFilter;
+    
+    let filtered = highWaterMarkData.data.filter(row => {
+      if (platformFilter !== 'all' && row.platform.toLowerCase() !== platformFilter) return false;
+      if (siteFilter !== 'all' && row.siteId !== siteFilter) return false;
+      return true;
     });
-  }, [highWaterMarkData, platformFilter]);
+
+    if (sortColumn && sortDirection) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal: any = (a as any)[sortColumn];
+        let bVal: any = (b as any)[sortColumn];
+        
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+        
+        if (aVal === null || aVal === undefined || aVal === '' || aVal === '-') aVal = sortDirection === 'asc' ? Infinity : -Infinity;
+        if (bVal === null || bVal === undefined || bVal === '' || bVal === '-') bVal = sortDirection === 'asc' ? Infinity : -Infinity;
+        
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return filtered;
+  }, [highWaterMarkData, platformFilter, siteFilter, sortColumn, sortDirection]);
 
   const platforms = sites ? Array.from(new Set(sites.map(s => s.platformType))) : [];
+  const uniqueSites = useMemo(() => {
+    if (!highWaterMarkData?.data) return [];
+    const siteMap = new Map<string, { id: string; name: string }>();
+    highWaterMarkData.data.forEach(row => {
+      if (!siteMap.has(row.siteId)) {
+        siteMap.set(row.siteId, { id: row.siteId, name: row.site });
+      }
+    });
+    return Array.from(siteMap.values());
+  }, [highWaterMarkData]);
 
   const calcOverage = (allocated: number, commit: string) => {
     if (!commit) return null;
@@ -184,6 +248,17 @@ export default function Report() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={siteFilter} onValueChange={setSiteFilter}>
+            <SelectTrigger className="w-[180px]" data-testid="select-site-filter">
+              <SelectValue placeholder="All Sites" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sites</SelectItem>
+              {uniqueSites.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button 
             onClick={handleExport} 
             disabled={isExporting}
@@ -269,16 +344,36 @@ export default function Report() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Site</TableHead>
-                      <TableHead>Platform</TableHead>
-                      <TableHead className="text-right">vCPU</TableHead>
-                      <TableHead className="text-right">RAM (GB)</TableHead>
-                      <TableHead className="text-right">HPS (GB)</TableHead>
-                      <TableHead className="text-right">SPS (GB)</TableHead>
-                      <TableHead className="text-right">VVol (GB)</TableHead>
-                      <TableHead className="text-right">Other (GB)</TableHead>
-                      <TableHead className="text-right">IPs</TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('businessName')}>
+                        <div className="flex items-center">Customer {getSortIcon('businessName')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('site')}>
+                        <div className="flex items-center">Site {getSortIcon('site')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('platform')}>
+                        <div className="flex items-center">Platform {getSortIcon('platform')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('vcpu')}>
+                        <div className="flex items-center justify-end">vCPU {getSortIcon('vcpu')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('ramGB')}>
+                        <div className="flex items-center justify-end">RAM (GB) {getSortIcon('ramGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageHpsGB')}>
+                        <div className="flex items-center justify-end">HPS (GB) {getSortIcon('storageHpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageSpsGB')}>
+                        <div className="flex items-center justify-end">SPS (GB) {getSortIcon('storageSpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageVvolGB')}>
+                        <div className="flex items-center justify-end">VVol (GB) {getSortIcon('storageVvolGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageOtherGB')}>
+                        <div className="flex items-center justify-end">Other (GB) {getSortIcon('storageOtherGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('allocatedIps')}>
+                        <div className="flex items-center justify-end">IPs {getSortIcon('allocatedIps')}</div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -312,16 +407,36 @@ export default function Report() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Site</TableHead>
-                      <TableHead>Platform</TableHead>
-                      <TableHead className="text-right">vCPU</TableHead>
-                      <TableHead className="text-right">RAM (GB)</TableHead>
-                      <TableHead className="text-right">HPS (GB)</TableHead>
-                      <TableHead className="text-right">SPS (GB)</TableHead>
-                      <TableHead className="text-right">VVol (GB)</TableHead>
-                      <TableHead className="text-right">Other (GB)</TableHead>
-                      <TableHead className="text-right">IPs</TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('businessName')}>
+                        <div className="flex items-center">Customer {getSortIcon('businessName')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('site')}>
+                        <div className="flex items-center">Site {getSortIcon('site')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('platform')}>
+                        <div className="flex items-center">Platform {getSortIcon('platform')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitVcpu')}>
+                        <div className="flex items-center justify-end">vCPU {getSortIcon('commitVcpu')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitRamGB')}>
+                        <div className="flex items-center justify-end">RAM (GB) {getSortIcon('commitRamGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitHpsGB')}>
+                        <div className="flex items-center justify-end">HPS (GB) {getSortIcon('commitHpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitSpsGB')}>
+                        <div className="flex items-center justify-end">SPS (GB) {getSortIcon('commitSpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitVvolGB')}>
+                        <div className="flex items-center justify-end">VVol (GB) {getSortIcon('commitVvolGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitOtherGB')}>
+                        <div className="flex items-center justify-end">Other (GB) {getSortIcon('commitOtherGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('commitIps')}>
+                        <div className="flex items-center justify-end">IPs {getSortIcon('commitIps')}</div>
+                      </TableHead>
                       <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -359,16 +474,36 @@ export default function Report() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Site</TableHead>
-                      <TableHead>Platform</TableHead>
-                      <TableHead className="text-right">vCPU</TableHead>
-                      <TableHead className="text-right">RAM (GB)</TableHead>
-                      <TableHead className="text-right">HPS (GB)</TableHead>
-                      <TableHead className="text-right">SPS (GB)</TableHead>
-                      <TableHead className="text-right">VVol (GB)</TableHead>
-                      <TableHead className="text-right">Other (GB)</TableHead>
-                      <TableHead className="text-right">IPs</TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('businessName')}>
+                        <div className="flex items-center">Customer {getSortIcon('businessName')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('site')}>
+                        <div className="flex items-center">Site {getSortIcon('site')}</div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('platform')}>
+                        <div className="flex items-center">Platform {getSortIcon('platform')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('vcpu')}>
+                        <div className="flex items-center justify-end">vCPU {getSortIcon('vcpu')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('ramGB')}>
+                        <div className="flex items-center justify-end">RAM (GB) {getSortIcon('ramGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageHpsGB')}>
+                        <div className="flex items-center justify-end">HPS (GB) {getSortIcon('storageHpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageSpsGB')}>
+                        <div className="flex items-center justify-end">SPS (GB) {getSortIcon('storageSpsGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageVvolGB')}>
+                        <div className="flex items-center justify-end">VVol (GB) {getSortIcon('storageVvolGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('storageOtherGB')}>
+                        <div className="flex items-center justify-end">Other (GB) {getSortIcon('storageOtherGB')}</div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('allocatedIps')}>
+                        <div className="flex items-center justify-end">IPs {getSortIcon('allocatedIps')}</div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
