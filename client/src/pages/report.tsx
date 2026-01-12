@@ -269,16 +269,19 @@ export default function Report() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            variant={showDisabled ? "default" : "outline"}
-            onClick={() => setShowDisabled(!showDisabled)}
-            data-testid="button-toggle-disabled"
-            className="flex items-center gap-2"
-            title={showDisabled ? 'Hide disabled tenants' : 'Show disabled tenants'}
-          >
-            {showDisabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            {showDisabled ? 'Showing All' : 'Hide Disabled'}
-          </Button>
+          <label className="flex items-center gap-2 cursor-pointer border rounded-md px-3 py-2 hover:bg-muted/50">
+            <input
+              type="checkbox"
+              checked={showDisabled}
+              onChange={(e) => setShowDisabled(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+              data-testid="checkbox-show-disabled"
+            />
+            <span className="text-sm flex items-center gap-1">
+              <EyeOff className="h-4 w-4 text-amber-500" />
+              Show Disabled
+            </span>
+          </label>
           <Button 
             onClick={handleExport} 
             disabled={isExporting}
