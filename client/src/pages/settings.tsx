@@ -752,7 +752,7 @@ export default function Settings() {
                   Add Platform Connection
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add Platform Connection</DialogTitle>
                   <DialogDescription>
@@ -870,7 +870,7 @@ export default function Settings() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Edit Platform Connection</DialogTitle>
                             <DialogDescription>
